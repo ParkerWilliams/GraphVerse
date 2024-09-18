@@ -12,37 +12,41 @@ from graphverse.data.preparation import prepare_training_data
 from graphverse.llm.training import train_model
 from graphverse.llm.evaluation import evaluate_model
 
-# Generate graph
+# Define graph parameters
 n = 1000  # Number of vertices
-in_edges = 100 #inital number of edges each vertex should have
-out_edges = 100 #'' out edges
-G = generate_random_graph(n,in_edges,out_edges)
+num_walks = 100_000  # Number of walks to generate
+min_walk_length = 10  # Minimum walk length
+max_walk_length = 50  # Maximum walk length
 
-print(f'graph created')
+# Define rule sets
+print('Selecting vertices with rules')
+ascenders, descenders, evens, odds, repeaters = define_all_rules(n, 3, 10, 100)
+
+# Create rule tuple
+rules = (
+    AscenderRule(ascenders),
+    DescenderRule(descenders),
+    EvenRule(evens),
+    OddRule(odds),
+    RepeaterRule(repeaters)
+)
+
+# Generate graph
+print('Generating graph')
+G = generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length)
+
+print(f'Graph created')
 
 # Print some information about the graph
 print(f"Number of nodes: {G.number_of_nodes()}")
 print(f"Number of edges: {G.number_of_edges()}")
 print(f"Is strongly connected: {nx.is_strongly_connected(G)}")
-print(f"Is wealkly connected: {nx.is_weakly_connected(G)}")
+print(f"Is weakly connected: {nx.is_weakly_connected(G)}")
 
-# Define rule sets
-print('selecting vertices with rules')
-ascenders, descenders, evens, odds, repeaters = define_all_rules(G,n,3,10,100)
-
-#print all rule se
-# Create rule tuple
-rules = (
-AscenderRule(ascenders),
-DescenderRule(descenders),
-EvenRule(evens),
-OddRule(odds),
-RepeaterRule(repeaters)
-)
 print(f'Now preparing training data')
 
 # Prepare training data
-training_data, vocab = prepare_training_data(G, num_samples=100_000, min_length=10, max_length=50, rules=rules)
+training_data, vocab = prepare_training_data(G, num_samples=num_walks, min_length=min_walk_length, max_length=max_walk_length, rules=rules)
 print(f'Training data prepared')
 print(f'Vocab size: {len(vocab)}')
 print(f'Training data shape: {training_data.shape}')
