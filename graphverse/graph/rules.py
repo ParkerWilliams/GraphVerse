@@ -21,7 +21,7 @@ def define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
     rule_vertices.update(odds)
 
     # Define repeaters
-    repeaters = define_repeaters(num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices)
+    repeaters = define_repeaters(n, num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices)
 
     return ascenders, descenders, evens, odds, repeaters
 
@@ -56,7 +56,7 @@ def define_evens_odds(n, existing_rule_vertices):
     odds = set(random.sample([v for v in available_vertices if v % 2 != 0], k=min(n//10, len(available_vertices))))
     return evens, odds
 
-def define_repeaters(num_repeaters, repeater_min_steps, repeater_max_steps, existing_rule_vertices):
+def define_repeaters(n, num_repeaters, repeater_min_steps, repeater_max_steps, existing_rule_vertices):
     """
     Define repeater vertices and their repetition steps while ensuring they are not already assigned to another rule.
     """
