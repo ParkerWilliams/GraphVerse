@@ -1,6 +1,6 @@
 import networkx as nx
-import math
 import random
+from .walk import generate_multiple_walks
 
 
 def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length):
@@ -26,13 +26,12 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length)
     return G
 
 
-def calculate_edge_density(G):
-    """
-    Calculate the actual edge density of the graph.
-    """
-    n = G.number_of_nodes()
-    m = G.number_of_edges()
-    return 2 * m / (n * (n - 1))
+def calculate_edge_density(graph):
+    num_nodes = graph.number_of_nodes()
+    num_edges = graph.number_of_edges()
+    max_possible_edges = num_nodes * (num_nodes - 1)
+    edge_density = num_edges / max_possible_edges
+    return edge_density
 
 
 def save_graph(G, path='my_graph.gml'):
