@@ -20,8 +20,12 @@ def evaluate_model(model, graph, vocab, num_samples, min_start_length, max_start
         while current_vertex in graph.nodes:
             logits = model(input_tensor)
             next_vertex_idx = torch.argmax(logits[0, -1]).item()
-            next_vertex = int(vocab.idx2token[next_vertex_idx])
+            next_vertex = vocab.idx2token[next_vertex_idx]
             
+            if next_vertex == '<END>':
+                break
+            
+            next_vertex = int(next_vertex)
             generated_walk.append(next_vertex)
             input_tensor = torch.cat((input_tensor, torch.tensor([[next_vertex_idx]], dtype=torch.long)), dim=1)
             
