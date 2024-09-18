@@ -1,83 +1,72 @@
 from abc import ABC, abstractmethod
 import random
 
-def define_all_rules(graph, n, num_repeaters, repeater_min_steps, repeater_max_steps):
+def define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
     """
     Define all rule vertices while ensuring each vertex is assigned at most one rule.
     """
     rule_vertices = set()
 
     # Define ascenders
-    ascenders = define_ascenders(graph, n, rule_vertices)
+    ascenders = define_ascenders(n, rule_vertices)
     rule_vertices.update(ascenders)
 
     # Define descenders
-    descenders = define_descenders(graph, n, rule_vertices)
+    descenders = define_descenders(n, rule_vertices)
     rule_vertices.update(descenders)
 
     # Define evens and odds
-    evens, odds = define_evens_odds(graph, n, rule_vertices)
+    evens, odds = define_evens_odds(n, rule_vertices)
     rule_vertices.update(evens)
     rule_vertices.update(odds)
 
     # Define repeaters
-    repeaters = define_repeaters(graph, num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices)
+    repeaters = define_repeaters(num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices)
 
     return ascenders, descenders, evens, odds, repeaters
 
-def define_ascenders(graph, n, existing_rule_vertices):
+def define_ascenders(n, existing_rule_vertices):
     """
     Define ascender vertices while ensuring they are not already assigned to another rule.
     """
-    available_vertices = set(graph.nodes()) - existing_rule_vertices
+    available_vertices = set(range(n)) - existing_rule_vertices
     mid = n // 2
     range_start = int(mid * 0.9)
     range_end = int(mid * 1.1)
     candidates = [v for v in available_vertices if range_start <= v <= range_end]
     return set(random.sample(candidates, k=min(len(candidates)//5, len(candidates))))
 
-def define_descenders(graph, n, existing_rule_vertices):
+def define_descenders(n, existing_rule_vertices):
     """
     Define descender vertices while ensuring they are not already assigned to another rule.
     """
-    available_vertices = set(graph.nodes()) - existing_rule_vertices
+    available_vertices = set(range(n)) - existing_rule_vertices
     mid = n // 2
     range_start = int(mid * 0.9)
     range_end = int(mid * 1.1)
     candidates = [v for v in available_vertices if range_start <= v <= range_end]
     return set(random.sample(candidates, k=min(len(candidates)//5, len(candidates))))
 
-def define_evens_odds(graph, n, existing_rule_vertices):
+def define_evens_odds(n, existing_rule_vertices):
     """
     Randomly select even and odd vertices that are not already assigned to another rule.
     """
-    available_vertices = set(graph.nodes()) - existing_rule_vertices
+    available_vertices = set(range(n)) - existing_rule_vertices
     evens = set(random.sample([v for v in available_vertices if v % 2 == 0], k=min(n//10, len(available_vertices))))
     odds = set(random.sample([v for v in available_vertices if v % 2 != 0], k=min(n//10, len(available_vertices))))
     return evens, odds
 
-def define_repeaters(graph, num_repeaters, min_steps, max_steps, existing_rule_vertices):
+def define_repeaters(num_repeaters, repeater_min_steps, repeater_max_steps, existing_rule_vertices):
     """
-    Randomly select vertices and their corresponding number of steps for the repeater rule.
-    Add k-1 edges to form a loop starting and stopping at the repeater vertex.
+    Define repeater vertices and their repetition steps while ensuring they are not already assigned to another rule.
     """
+    available_vertices = set(range(n)) - existing_rule_vertices
     repeaters = {}
-    available_vertices = set(graph.nodes()) - existing_rule_vertices
-    
     for _ in range(num_repeaters):
-        vertex = random.choice(list(available_vertices))
-        steps = random.randint(min_steps, max_steps)
-        
-        # Add k-1 edges to form a loop starting and stopping at the repeater vertex
-        loop_vertices = random.sample(list(available_vertices), steps - 1)
-        loop_vertices.insert(0, vertex)
-        loop_vertices.append(vertex)
-        
-        for i in range(len(loop_vertices) - 1):
-            graph.add_edge(loop_vertices[i], loop_vertices[i + 1])
-        
-        repeaters[vertex] = steps
-    
+        if available_vertices:
+            v = random.choice(list(available_vertices))
+            available_vertices.remove(v)
+            repeaters[v] = random.randint(repeater_min_steps, repeater_max_steps)
     return repeaters
 
 def check_rule_compliance(walk, ascenders, descenders, evens, odds):
