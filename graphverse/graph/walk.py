@@ -3,22 +3,29 @@ from .rules import Rule
 
 def check_rule_compliance(graph, walk, rules, verbose=False):
     if verbose:
-        print("Checking rule compliance...")
-    result = all(rule.apply(graph, walk) for rule in rules)
+        print(f"Checking rule compliance for walk: {walk}")
+    for rule in rules:
+        if verbose:
+            print(f"Checking rule: {rule.__class__.__name__}")
+        result = rule.apply(graph, walk)
+        if not result:
+            if verbose:
+                print(f"Rule {rule.__class__.__name__} violated for walk: {walk}")
+            return False
     if verbose:
-        print("Rule compliance check completed.")
-    return result
+        print(f"Rule compliance check completed for walk: {walk}")
+    return True
 
 def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False):
     if verbose:
-        print("Generating valid walk...")
+        print(f"Generating valid walk starting from vertex {start_vertex} with rules: {[rule.__class__.__name__ for rule in rules]}")
     target_length = random.randint(min_length, max_length)
     walk = [start_vertex]
     attempts = 0
 
     while len(walk) < target_length:
         if verbose:
-            print(f"Current walk length: {len(walk)}, Target length: {target_length}")
+            print(f"Current walk: {walk}, Target length: {target_length}")
         valid_neighbors = [
             neighbor for neighbor in graph.nodes()
             if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
