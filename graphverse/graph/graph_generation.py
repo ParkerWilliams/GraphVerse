@@ -3,18 +3,31 @@ import random
 from .walk import generate_multiple_walks
 
 
-def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length):
+def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length, verbose=False):
+    if verbose:
+        print("Generating random graph...")
+
     # Create an empty directed graph
+    if verbose:
+        print("Creating an empty directed graph...")
     G = nx.DiGraph()
 
     # Add nodes
+    if verbose:
+        print(f"Adding {n} nodes...")
     G.add_nodes_from(range(n))
 
     # Generate walks and add edges based on the walks
-    walks = generate_multiple_walks(G, num_walks, min_walk_length, max_walk_length, rules)
+    if verbose:
+        print("Generating walks and adding edges...")
+    walks = generate_multiple_walks(G, num_walks, min_walk_length, max_walk_length, rules, verbose)
 
     # Assign random probability distributions to outgoing edges
+    if verbose:
+        print("Assigning random probability distributions to outgoing edges...")
     for node in G.nodes():
+        if verbose:
+            print(f"Processing node {node}...")
         out_edges = list(G.out_edges(node))
         if out_edges:
             probabilities = [random.random() for _ in range(len(out_edges))]
@@ -23,28 +36,42 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length)
             for (u, v), prob in zip(out_edges, normalized_probabilities):
                 G[u][v]['probability'] = prob
 
+    if verbose:
+        print("Random graph generated successfully.")
     return G
 
 
-def calculate_edge_density(graph):
+def calculate_edge_density(graph, verbose=False):
+    if verbose:
+        print("Calculating edge density...")
     num_nodes = graph.number_of_nodes()
     num_edges = graph.number_of_edges()
     max_possible_edges = num_nodes * (num_nodes - 1)
     edge_density = num_edges / max_possible_edges
+    if verbose:
+        print(f"Edge density: {edge_density}")
     return edge_density
 
 
-def save_graph(G, path='my_graph.gml'):
+def save_graph(G, path='my_graph.gml', verbose=False):
     """
     Save the graph to disk.
     """
+    if verbose:
+        print(f"Saving graph to {path}...")
     nx.write_gml(G, path)
+    if verbose:
+        print("Graph saved successfully.")
     return True
 
 
-def load_graph(path='my_graph.gml'):
+def load_graph(path='my_graph.gml', verbose=False):
     """
     Load the Graph from disk.
     """
+    if verbose:
+        print(f"Loading graph from {path}...")
     G = nx.read_gml(path)
+    if verbose:
+        print("Graph loaded successfully.")
     return G
