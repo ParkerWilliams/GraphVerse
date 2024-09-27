@@ -72,10 +72,11 @@ def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, ver
     walks = []
     attempts = 0
     max_attempts = 10
+    total_attempts = 0
 
     while len(walks) < num_walks:
         if verbose:
-            print(f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}")
+            print(f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}")
         start_vertex = random.choice(list(graph.nodes()))
         walk = generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts, verbose)
 
@@ -84,6 +85,7 @@ def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, ver
             attempts = 0
         else:
             attempts += 1
+            total_attempts += 1
 
             if attempts >= max_attempts:
                 if verbose:
