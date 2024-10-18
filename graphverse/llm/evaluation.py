@@ -3,12 +3,15 @@ from ..graph.walk import check_rule_compliance, generate_valid_walk
 import random
 import torch
 
-def evaluate_model(model, graph, vocab, num_samples, min_start_length, max_start_length, rules):
+def evaluate_model(model, graph, vocab, num_samples, min_start_length, max_start_length, rules, verbose=False):
     model.eval()
     
     evaluation_results = []
     
-    for _ in range(num_samples):
+    for sample_idx in range(num_samples):
+        if verbose and (sample_idx + 1) % 10 == 0:
+            print(f"Evaluating sample {sample_idx + 1}/{num_samples}")
+        
         start_length = random.randint(min_start_length, max_start_length)
         start_walk = generate_valid_walk(graph, random.choice(list(graph.nodes)), start_length, start_length, rules)
         
@@ -46,6 +49,9 @@ def evaluate_model(model, graph, vocab, num_samples, min_start_length, max_start
             'generated_walk': generated_walk,
             'rule_violations': rule_violations
         })
+    
+    if verbose:
+        print("Evaluation completed.")
     
     return evaluation_results
 
