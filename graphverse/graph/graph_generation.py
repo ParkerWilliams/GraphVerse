@@ -17,10 +17,66 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length,
         print(f"Adding {n} nodes...")
     G.add_nodes_from(range(n))
 
-    # Generate walks and add edges based on the walks
+    # Assign rule designations to vertices
     if verbose:
-        print("Generating walks and adding edges...")
-    walks = generate_multiple_walks(G, num_walks, min_walk_length, max_walk_length, rules, verbose)
+        print("Assigning rule designations to vertices...")
+    ascenders, descenders, evens, odds, repeaters = rules
+    for node in G.nodes():
+        if node in ascenders:
+            G.nodes[node]['rule'] = 'ascender'
+        elif node in descenders:
+            G.nodes[node]['rule'] = 'descender'
+        elif node in evens:
+            G.nodes[node]['rule'] = 'even'
+        elif node in odds:
+            G.nodes[node]['rule'] = 'odd'
+        elif node in repeaters:
+            G.nodes[node]['rule'] = 'repeater'
+            G.nodes[node]['repetitions'] = repeaters[node]
+
+    # Build the graph by adding edges that satisfy the rules
+    if verbose:
+        print("Building the graph by adding edges that satisfy the rules...")
+    for node in G.nodes():
+        if verbose:
+            print(f"Processing node {node}...")
+        rule = G.nodes[node]['rule']
+        if rule == 'ascender':
+            # Add edges to higher-numbered nodes
+            candidates = [v for v in G.nodes() if v > node]
+            if candidates:
+                num_edges = random.randint(1, len(candidates))
+                for v in random.sample(candidates, num_edges):
+                    G.add_edge(node, v)
+        elif rule == 'descender':
+            # Add edges to lower-numbered nodes
+            candidates = [v for v in G.nodes() if v < node]
+            if candidates:
+                num_edges = random.randint(1, len(candidates))
+                for v in random.sample(candidates, num_edges):
+                    G.add_edge(node, v)
+        elif rule == 'even':
+            # Add edges to even-numbered nodes
+            candidates = [v for v in G.nodes() if v % 2 == 0]
+            if candidates:
+                num_edges = random.randint(1, len(candidates))
+                for v in random.sample(candidates, num_edges):
+                    G.add_edge(node, v)
+        elif rule == 'odd':
+            # Add edges to odd-numbered nodes
+            candidates = [v for v in G.nodes() if v % 2 != 0]
+            if candidates:
+                num_edges = random.randint(1, len(candidates))
+                for v in random.sample(candidates, num_edges):
+                    G.add_edge(node, v)
+        elif rule == 'repeater':
+            # Add edges to satisfy the repeater rule
+            repetitions = G.nodes[node]['repetitions']
+            candidates = [v for v in G.nodes() if v != node and G.nodes[v]['rule'] != 'even' and G.nodes[v]['rule'] != 'odd']
+            if candidates:
+                for _ in range(repetitions):
+                    v = random.choice(candidates)
+                    G.add_edge(node, v)
 
     # Assign random probability distributions to outgoing edges
     if verbose:
