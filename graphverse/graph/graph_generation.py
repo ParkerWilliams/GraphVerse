@@ -33,6 +33,8 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length,
         elif node in repeaters:
             G.nodes[node]['rule'] = 'repeater'
             G.nodes[node]['repetitions'] = repeaters[node]
+        else:
+            G.nodes[node]['rule'] = 'none'  # Assign 'none' rule for nodes without a specific rule
 
     # Build the graph by adding edges that satisfy the rules
     if verbose:
