@@ -41,11 +41,11 @@ def train_model(
             if verbose and (batch_idx + 1) % 10 == 0:
                 avg_loss = total_loss / (batch_idx + 1)
                 print(
-                    f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(dataloader)}, Loss: {avg_loss:.4f}"
+                    f"Epoch {epoch + 1}/{epochs}, Batch {batch_idx + 1}/{len(dataloader)}, Loss: {avg_loss:.4f}"
                 )
 
         avg_loss = total_loss / len(dataloader)
         if verbose:
-            print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
 
     return model

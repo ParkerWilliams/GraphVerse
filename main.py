@@ -19,6 +19,7 @@ from graphverse.graph.rules import (
     RepeaterRule,
     define_all_rules,
 )
+from graphverse.graph.walk import generate_multiple_walks
 from graphverse.llm.evaluation import evaluate_model
 from graphverse.llm.training import train_model
 
@@ -63,7 +64,9 @@ def main(
     walks = generate_multiple_walks(
         G, num_walks, min_walk_length, max_walk_length, rules, verbose=verbose
     )
-    training_data, vocab = prepare_training_data(G, walks, rules, verbose=verbose)
+    training_data, vocab = prepare_training_data(
+        G, num_walks, min_walk_length, max_walk_length, rules, verbose=verbose
+    )
     if verbose:
         print(f"Training data prepared")
 
