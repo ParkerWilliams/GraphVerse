@@ -43,7 +43,16 @@ def main(
     ascenders, descenders, evens, odds, repeaters = define_all_rules(
         n, num_repeaters, repeater_min_steps, repeater_max_steps
     )
-    rules = (ascenders, descenders, evens, odds, repeaters)
+
+    # Create rule objects
+    ascender_rule = AscenderRule(ascenders)
+    descender_rule = DescenderRule(descenders)
+    even_rule = EvenRule(evens)
+    odd_rule = OddRule(odds)
+    repeater_rule = RepeaterRule(repeaters)
+
+    # Set of rules
+    rules = {ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule}
 
     # Generate graph
     if verbose:
