@@ -1,16 +1,19 @@
 import unittest
+
 import networkx as nx
-from graphverse.graph.generation import generate_graph, calculate_edge_density
+
+from graphverse.graph.generation import calculate_edge_density, generate_graph
+
 
 class TestGraphGeneration(unittest.TestCase):
     def test_generate_graph(self):
         n = 100
         c = 1.1
         graph = generate_graph(n, c)
-        
+
         self.assertEqual(graph.number_of_nodes(), n)
         self.assertTrue(nx.is_connected(graph))
-        
+
         expected_density = c * nx.Graph.average_degree(graph) / (2 * (n - 1))
         actual_density = calculate_edge_density(graph)
         self.assertAlmostEqual(actual_density, expected_density, places=2)
@@ -20,5 +23,6 @@ class TestGraphGeneration(unittest.TestCase):
         density = calculate_edge_density(G)
         self.assertEqual(density, 1.0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

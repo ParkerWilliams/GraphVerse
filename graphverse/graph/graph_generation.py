@@ -1,9 +1,13 @@
-import networkx as nx
 import random
+
+import networkx as nx
+
 from .walk import generate_multiple_walks
 
 
-def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length, verbose=False):
+def generate_random_graph(
+    n, rules, num_walks, min_walk_length, max_walk_length, verbose=False
+):
     if verbose:
         print("Generating random graph...")
 
@@ -23,18 +27,20 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length,
     ascenders, descenders, evens, odds, repeaters = rules
     for node in G.nodes():
         if node in ascenders:
-            G.nodes[node]['rule'] = 'ascender'
+            G.nodes[node]["rule"] = "ascender"
         elif node in descenders:
-            G.nodes[node]['rule'] = 'descender'
+            G.nodes[node]["rule"] = "descender"
         elif node in evens:
-            G.nodes[node]['rule'] = 'even'
+            G.nodes[node]["rule"] = "even"
         elif node in odds:
-            G.nodes[node]['rule'] = 'odd'
+            G.nodes[node]["rule"] = "odd"
         elif node in repeaters:
-            G.nodes[node]['rule'] = 'repeater'
-            G.nodes[node]['repetitions'] = repeaters[node]
+            G.nodes[node]["rule"] = "repeater"
+            G.nodes[node]["repetitions"] = repeaters[node]
         else:
-            G.nodes[node]['rule'] = 'none'  # Assign 'none' rule for nodes without a specific rule
+            G.nodes[node]["rule"] = (
+                "none"  # Assign 'none' rule for nodes without a specific rule
+            )
 
     # Build the graph by adding edges that satisfy the rules
     if verbose:
@@ -42,39 +48,45 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length,
     for node in G.nodes():
         if verbose:
             print(f"Processing node {node}...")
-        rule = G.nodes[node]['rule']
-        if rule == 'ascender':
+        rule = G.nodes[node]["rule"]
+        if rule == "ascender":
             # Add edges to higher-numbered nodes
             candidates = [v for v in G.nodes() if v > node]
             if candidates:
                 num_edges = random.randint(1, len(candidates))
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
-        elif rule == 'descender':
+        elif rule == "descender":
             # Add edges to lower-numbered nodes
             candidates = [v for v in G.nodes() if v < node]
             if candidates:
                 num_edges = random.randint(1, len(candidates))
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
-        elif rule == 'even':
+        elif rule == "even":
             # Add edges to even-numbered nodes
             candidates = [v for v in G.nodes() if v % 2 == 0]
             if candidates:
                 num_edges = random.randint(1, len(candidates))
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
-        elif rule == 'odd':
+        elif rule == "odd":
             # Add edges to odd-numbered nodes
             candidates = [v for v in G.nodes() if v % 2 != 0]
             if candidates:
                 num_edges = random.randint(1, len(candidates))
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
-        elif rule == 'repeater':
+        elif rule == "repeater":
             # Add edges to satisfy the repeater rule
-            repetitions = G.nodes[node]['repetitions']
-            candidates = [v for v in G.nodes() if v != node and G.nodes[v]['rule'] != 'even' and G.nodes[v]['rule'] != 'odd']
+            repetitions = G.nodes[node]["repetitions"]
+            candidates = [
+                v
+                for v in G.nodes()
+                if v != node
+                and G.nodes[v]["rule"] != "even"
+                and G.nodes[v]["rule"] != "odd"
+            ]
             if candidates:
                 for _ in range(repetitions):
                     v = random.choice(candidates)
@@ -92,7 +104,7 @@ def generate_random_graph(n, rules, num_walks, min_walk_length, max_walk_length,
             total = sum(probabilities)
             normalized_probabilities = [p / total for p in probabilities]
             for (u, v), prob in zip(out_edges, normalized_probabilities):
-                G[u][v]['probability'] = prob
+                G[u][v]["probability"] = prob
 
     if verbose:
         print("Random graph generated successfully.")
@@ -111,7 +123,7 @@ def calculate_edge_density(graph, verbose=False):
     return edge_density
 
 
-def save_graph(G, path='my_graph.gml', verbose=False):
+def save_graph(G, path="my_graph.gml", verbose=False):
     """
     Save the graph to disk.
     """
@@ -123,7 +135,7 @@ def save_graph(G, path='my_graph.gml', verbose=False):
     return True
 
 
-def load_graph(path='my_graph.gml', verbose=False):
+def load_graph(path="my_graph.gml", verbose=False):
     """
     Load the Graph from disk.
     """

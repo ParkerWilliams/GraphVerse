@@ -1,14 +1,16 @@
 import torch
-from ..graph.walk import generate_multiple_walks
-from ..graph.walk import generate_valid_walk
+
+from ..graph.walk import generate_multiple_walks, generate_valid_walk
+
 
 class WalkVocabulary:
     """
     Vocabulary for walks.
     """
+
     def __init__(self, walks):
-        self.token2idx = {'<PAD>': 0, '<START>': 1, '<END>': 2}
-        self.idx2token = {0: '<PAD>', 1: '<START>', 2: '<END>'}
+        self.token2idx = {"<PAD>": 0, "<START>": 1, "<END>": 2}
+        self.idx2token = {0: "<PAD>", 1: "<START>", 2: "<END>"}
         self.build_vocab(walks)
 
     def build_vocab(self, walks):
@@ -22,7 +24,10 @@ class WalkVocabulary:
     def __len__(self):
         return len(self.token2idx)
 
-def prepare_training_data(graph, num_samples, min_length, max_length, rules, verbose=False):
+
+def prepare_training_data(
+    graph, num_samples, min_length, max_length, rules, verbose=False
+):
     """
     Prepare training data for the model.
     """
@@ -37,25 +42,35 @@ def prepare_training_data(graph, num_samples, min_length, max_length, rules, ver
             per_node_walks.append(valid_walk)
         if verbose:
             print()  # Print a new line after each iteration
-    
+
     # Generate walks
     if verbose:
         print(f"Generating {num_samples} walks...")
-    walks = generate_multiple_walks(graph, num_samples, min_length, max_length, rules, verbose=verbose)
+    walks = generate_multiple_walks(
+        graph, num_samples, min_length, max_length, rules, verbose=verbose
+    )
 
     walks = walks + per_node_walks
 
     # Create vocabulary
     vocab = WalkVocabulary(walks)
-    
+
     tensor_data = []
     for walk in walks:
-        tensor_walk = [vocab.token2idx['<START>']] + [vocab.token2idx[str(node)] for node in walk] + [vocab.token2idx['<END>']]
+        tensor_walk = (
+            [vocab.token2idx["<START>"]]
+            + [vocab.token2idx[str(node)] for node in walk]
+            + [vocab.token2idx["<END>"]]
+        )
         tensor_data.append(torch.tensor(tensor_walk))
-    
+
     if verbose:
         print(f"Number of walks: {len(walks)}")
         print(f"Vocabulary size: {len(vocab)}")
-        print(f"Tensor data shape: {torch.nn.utils.rnn.pad_sequence(tensor_data, batch_first=True, padding_value=vocab.token2idx['<PAD>']).shape}")
-    
-    return torch.nn.utils.rnn.pad_sequence(tensor_data, batch_first=True, padding_value=vocab.token2idx['<PAD>']), vocab
+        print(
+            f"Tensor data shape: {torch.nn.utils.rnn.pad_sequence(tensor_data, batch_first=True, padding_value=vocab.token2idx['<PAD>']).shape}"
+        )
+
+    return torch.nn.utils.rnn.pad_sequence(
+        tensor_data, batch_first=True, padding_value=vocab.token2idx["<PAD>"]
+    ), vocab

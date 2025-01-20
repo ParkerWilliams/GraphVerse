@@ -1,4 +1,4 @@
+from .evaluation import count_rule_violations, evaluate_model
 from .model import WalkTransformer
-from .training import train_model
 from .token_generation import seed_walk
-from .evaluation import evaluate_model, count_rule_violations
+from .training import train_model

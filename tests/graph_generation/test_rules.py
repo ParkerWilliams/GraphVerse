@@ -1,6 +1,14 @@
 import unittest
+
 import networkx as nx
-from graphverse.graph.rules import define_ascenders, define_descenders, define_evens_odds, check_rule_compliance
+
+from graphverse.graph.rules import (
+    check_rule_compliance,
+    define_ascenders,
+    define_descenders,
+    define_evens_odds,
+)
+
 
 class TestGraphRules(unittest.TestCase):
     def setUp(self):
@@ -28,11 +36,16 @@ class TestGraphRules(unittest.TestCase):
 
         # Compliant walk
         walk = [1, 2, 3, 4, 50, 51, 52]
-        self.assertTrue(check_rule_compliance(walk, self.graph, ascenders, descenders, evens, odds))
+        self.assertTrue(
+            check_rule_compliance(walk, self.graph, ascenders, descenders, evens, odds)
+        )
 
         # Non-compliant walk (violates ascender rule)
         walk = [1, 2, 50, 49]
-        self.assertFalse(check_rule_compliance(walk, self.graph, ascenders, descenders, evens, odds))
+        self.assertFalse(
+            check_rule_compliance(walk, self.graph, ascenders, descenders, evens, odds)
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

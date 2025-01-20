@@ -1,5 +1,7 @@
 import random
+
 from .rules import Rule
+
 
 def check_rule_compliance(graph, walk, rules, verbose=False):
     if verbose:
@@ -16,9 +18,14 @@ def check_rule_compliance(graph, walk, rules, verbose=False):
         print(f"Rule compliance check completed for walk: {walk}")
     return True
 
-def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False):
+
+def generate_valid_walk(
+    graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False
+):
     if verbose:
-        print(f"Generating valid walk starting from vertex {start_vertex} with rules: {[rule.__class__.__name__ for rule in rules]}")
+        print(
+            f"Generating valid walk starting from vertex {start_vertex} with rules: {[rule.__class__.__name__ for rule in rules]}"
+        )
     target_length = random.randint(min_length, max_length)
     walk = [start_vertex]
     attempts = 0
@@ -27,7 +34,8 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
         if verbose:
             print(f"Current walk: {walk}, Target length: {target_length}")
         valid_neighbors = [
-            neighbor for neighbor in graph.nodes()
+            neighbor
+            for neighbor in graph.nodes()
             if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
         ]
 
@@ -66,7 +74,10 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
             print("Failed to generate a valid walk.")
         return None
 
-def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, verbose=False):
+
+def generate_multiple_walks(
+    graph, num_walks, min_length, max_length, rules, verbose=False
+):
     if verbose:
         print(f"Generating {num_walks} walks...")
     walks = []
@@ -76,9 +87,13 @@ def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, ver
 
     while len(walks) < num_walks:
         if verbose:
-            print(f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}")
+            print(
+                f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}"
+            )
         start_vertex = random.choice(list(graph.nodes()))
-        walk = generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts, verbose)
+        walk = generate_valid_walk(
+            graph, start_vertex, min_length, max_length, rules, max_attempts, verbose
+        )
 
         if walk:
             walks.append(walk)

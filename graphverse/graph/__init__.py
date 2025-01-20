@@ -1,3 +1,12 @@
-from .graph_generation import generate_random_graph, calculate_edge_density
-from .rules import define_ascenders, define_descenders, define_evens_odds, check_rule_compliance, AscenderRule, DescenderRule, EvenRule, OddRule
-from .walk import generate_valid_walk, generate_multiple_walks
+from .graph_generation import calculate_edge_density, generate_random_graph
+from .rules import (
+    AscenderRule,
+    DescenderRule,
+    EvenRule,
+    OddRule,
+    check_rule_compliance,
+    define_ascenders,
+    define_descenders,
+    define_evens_odds,
+)
+from .walk import generate_multiple_walks, generate_valid_walk
