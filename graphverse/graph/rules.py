@@ -2,6 +2,54 @@ import random
 from abc import ABC, abstractmethod
 
 
+
+def instantiate_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
+    """
+    Define all rule vertices while ensuring each vertex is assigned at most one rule.
+
+    :return: list of instantiated Rule objects
+    """
+    rule_vertices = set()
+
+    # Define ascenders
+    ascenders = define_ascenders(n, rule_vertices)
+    rule_vertices.update(ascenders)
+    ascender_rule_obj = AscenderRule(ascenders)
+
+    # Define descenders
+    descenders = define_descenders(n, rule_vertices)
+    rule_vertices.update(descenders)
+    descender_rule_obj = DescenderRule(descenders)
+
+    # Define evens and odds
+    evens, odds = define_evens_odds(n, rule_vertices)
+    rule_vertices.update(evens)
+    rule_vertices.update(odds)
+    evens_rule_obj = EvenRule(evens)
+    odds_rule_obj = OddRule(odds)
+
+    # Define repeaters
+    repeaters = define_repeaters(
+        n, num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices
+    )
+    repeater_rule_obj = RepeaterRule(repeaters)
+
+    return (
+        ascender_rule_obj,
+        descender_rule_obj,
+        evens_rule_obj,
+        odds_rule_obj,
+        repeater_rule_obj,
+    )
+
+
+
+
+
+
+
+
+
 def define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
     """
     Define all rule vertices while ensuring each vertex is assigned at most one rule.
@@ -122,76 +170,100 @@ class Rule(ABC):
 
 class AscenderRule(Rule):
     def __init__(self, ascenders):
-        self.ascenders = ascenders
+        self.member_nodes = ascenders
 
     def apply(self, graph, walk):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
-            if v in self.ascenders:
+            if v in self.member_nodes:
                 if any(walk[j] < v for j in range(i + 1, len(walk))):
                     return False
         return True
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
-            if walk[i] in self.ascenders and walk[i + 1] <= walk[i]:
+            if walk[i] in self.member_nodes and walk[i + 1] <= walk[i]:
                 return i + 1
         return None
 
 
 class DescenderRule(Rule):
     def __init__(self, descenders):
-        self.descenders = descenders
+        self.member_nodes = descenders
 
     def apply(self, graph, walk):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
-            if v in self.descenders:
+            if v in self.member_nodes:
                 if any(walk[j] > v for j in range(i + 1, len(walk))):
                     return False
         return True
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
-            if walk[i] in self.descenders and walk[i + 1] >= walk[i]:
+            if walk[i] in self.member_nodes and walk[i + 1] >= walk[i]:
                 return i + 1
         return None
 
 
 class EvenRule(Rule):
     def __init__(self, evens):
-        self.evens = evens
+        self.member_nodes = evens
 
     def apply(self, graph, walk):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
-            if v in self.evens:
+            if v in self.member_nodes:
                 if any(walk[j] % 2 != 0 for j in range(i + 1, len(walk))):
                     return False
         return True
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
-            if walk[i] in self.evens and walk[i + 1] % 2 != 0:
+            if walk[i] in self.member_nodes and walk[i + 1] % 2 != 0:
                 return i + 1
+        return None
+
+
+class RepeaterRule(Rule):
+    def __init__(self, repeaters):
+        self.member_nodes = repeaters
+
+    def apply(self, graph, walk):
+        walk = [int(item) for item in walk]
+        for v, k in self.member_nodes.items():
+            if v in walk:
+                indices = [i for i, x in enumerate(walk) if x == v]
+                for i in range(len(indices) - 1):
+                    if indices[i + 1] - indices[i] != k:
+                        return False
+        return True
+
+    def get_violation_position(self, graph, walk):
+        for v, k in self.member_nodes.items():
+            if v in walk:
+                indices = [i for i, x in enumerate(walk) if x == v]
+                for i in range(len(indices) - 1):
+                    if indices[i + 1] - indices[i] != k:
+                        return indices[i + 1]
         return None
 
 
 class OddRule(Rule):
     def __init__(self, odds):
-        self.odds = odds
+        self.member_nodes = odds
 
     def apply(self, graph, walk):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
-            if v in self.odds:
+            if v in self.member_nodes:
                 if any(walk[j] % 2 == 0 for j in range(i + 1, len(walk))):
                     return False
         return True
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
-            if walk[i] in self.odds and walk[i + 1] % 2 == 0:
+            if walk[i] in self.member_nodes and walk[i + 1] % 2 == 0:
                 return i + 1
         return None
 
@@ -204,25 +276,3 @@ class EdgeExistenceRule(Rule):
         return True
 
 
-class RepeaterRule(Rule):
-    def __init__(self, repeaters):
-        self.repeaters = repeaters
-
-    def apply(self, graph, walk):
-        walk = [int(item) for item in walk]
-        for v, k in self.repeaters.items():
-            if v in walk:
-                indices = [i for i, x in enumerate(walk) if x == v]
-                for i in range(len(indices) - 1):
-                    if indices[i + 1] - indices[i] != k:
-                        return False
-        return True
-
-    def get_violation_position(self, graph, walk):
-        for v, k in self.repeaters.items():
-            if v in walk:
-                indices = [i for i, x in enumerate(walk) if x == v]
-                for i in range(len(indices) - 1):
-                    if indices[i + 1] - indices[i] != k:
-                        return indices[i + 1]
-        return None

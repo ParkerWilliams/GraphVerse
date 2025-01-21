@@ -6,7 +6,7 @@ from .walk import generate_multiple_walks
 
 
 def generate_random_graph(
-    n, rules, num_walks, min_walk_length, max_walk_length, verbose=False
+    n, rules, verbose=False
 ):
     if verbose:
         print("Generating random graph...")
@@ -24,22 +24,23 @@ def generate_random_graph(
     # Assign rule designations to vertices
     if verbose:
         print("Assigning rule designations to vertices...")
-    ascenders, descenders, evens, odds, repeaters = rules
+    ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
     for node in G.nodes():
-        if node in ascenders:
+        if node in ascender_rule.member_nodes:
             G.nodes[node]["rule"] = "ascender"
-        elif node in descenders:
+        elif node in descender_rule.member_nodes:
             G.nodes[node]["rule"] = "descender"
-        elif node in evens:
+        elif node in even_rule.member_nodes:
             G.nodes[node]["rule"] = "even"
-        elif node in odds:
+        elif node in odd_rule.member_nodes:
             G.nodes[node]["rule"] = "odd"
-        elif node in repeaters:
+        elif node in repeater_rule.member_nodes:
             G.nodes[node]["rule"] = "repeater"
-            G.nodes[node]["repetitions"] = repeaters[node]
+            G.nodes[node]["repetitions"] = repeater_rule.member_nodes[node]
         else:
+             # Assign 'none' rule for nodes without a specific rule
             G.nodes[node]["rule"] = (
-                "none"  # Assign 'none' rule for nodes without a specific rule
+                "none" 
             )
 
     # Build the graph by adding edges that satisfy the rules

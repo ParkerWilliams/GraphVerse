@@ -26,7 +26,7 @@ class WalkVocabulary:
 
 
 def prepare_training_data(
-    graph, num_samples, min_length, max_length, rules, verbose=False
+    graph, num_walks, min_length, max_length, rules, verbose=False
 ):
     """
     Prepare training data for the model.
@@ -45,9 +45,9 @@ def prepare_training_data(
 
     # Generate walks
     if verbose:
-        print(f"Generating {num_samples} walks...")
+        print(f"Generating {num_walks} walks...")
     walks = generate_multiple_walks(
-        graph, num_samples, min_length, max_length, rules, verbose=verbose
+        graph, num_walks, min_length, max_length, rules, verbose=verbose
     )
 
     walks = walks + per_node_walks
