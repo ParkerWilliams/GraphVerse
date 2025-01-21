@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 from ..graph.walk import generate_multiple_walks, generate_valid_walk
 
@@ -9,17 +10,26 @@ class WalkVocabulary:
     """
 
     def __init__(self, walks):
-        self.token2idx = {"<PAD>": 0, "<START>": 1, "<END>": 2}
-        self.idx2token = {0: "<PAD>", 1: "<START>", 2: "<END>"}
-        self.build_vocab(walks)
+        max_node = np.max(np.concatenate(walks))
+        nodes = range(0, max_node + 1)
+        self.token2idx = {
+            **{str(x): x for x in nodes},
+            **{"<PAD>": max_node + 1, "<START>": max_node + 2, "<END>": max_node + 3}
+        }
+        self.idx2token = {
+            **{x: str(x) for x in nodes},
+            **{max_node + 1: "<PAD>", max_node + 2: "<START>", max_node + 3: "<END>"}
+        }
+        # self. = {}
+        # self.build_vocab(walks)
 
-    def build_vocab(self, walks):
-        for walk in walks:
-            for token in walk:
-                if str(token) not in self.token2idx:
-                    idx = len(self.token2idx)
-                    self.token2idx[str(token)] = idx
-                    self.idx2token[idx] = str(token)
+    # def build_vocab(self, walks):
+    #     for walk in walks:
+    #         for token in walk:
+    #             if str(token) not in self.token2idx:
+    #                 idx = len(self.token2idx) - 3
+    #                 self.token2idx[str(token)] = idx
+    #                 self.idx2token[idx] = str(token)
 
     def __len__(self):
         return len(self.token2idx)

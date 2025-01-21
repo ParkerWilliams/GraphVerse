@@ -9,7 +9,7 @@ def evaluate_model(
     model,
     graph,
     vocab,
-    num_samples,
+    num_walks,
     min_start_length,
     max_start_length,
     rules,
@@ -19,14 +19,18 @@ def evaluate_model(
 
     evaluation_results = []
 
-    for sample_idx in range(num_samples):
+    for sample_idx in range(num_walks):
         if verbose and (sample_idx + 1) % 10 == 0:
-            print(f"Evaluating sample {sample_idx + 1}/{num_samples}")
+            print(f"Evaluating sample {sample_idx + 1}/{num_walks}")
 
-        start_length = random.randint(min_start_length, max_start_length)
+        # start_length = random.randint(min_start_length, max_start_length)
         start_walk = generate_valid_walk(
-            graph, random.choice(list(graph.nodes)), start_length, start_length, rules
+            graph, random.choice(list(graph.nodes)), min_start_length, max_start_length, rules
         )
+
+        print(start_walk)
+        # ["<START>", 0, 10, 8, ]
+        # [-2, 0, 10, 8, ]
 
         input_tensor = torch.tensor(
             [vocab.token2idx[str(node)] for node in start_walk], dtype=torch.long
@@ -35,10 +39,12 @@ def evaluate_model(
         generated_walk = start_walk[:]
         current_vertex = start_walk[-1]
 
+        counter = 0
         while current_vertex in graph.nodes:
             logits = model(input_tensor)
             next_vertex_idx = torch.argmax(logits[0, -1]).item()
             next_vertex = vocab.idx2token[next_vertex_idx]
+            print(counter, current_vertex, next_vertex, next_vertex_idx, logits)
 
             if next_vertex == "<END>":
                 break
@@ -51,6 +57,7 @@ def evaluate_model(
             )
 
             current_vertex = next_vertex
+            counter += 1
 
         rule_violations = []
         for i, rule in enumerate(rules, start=1):
