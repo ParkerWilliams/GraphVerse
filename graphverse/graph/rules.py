@@ -137,7 +137,7 @@ def define_repeaters(
     return repeaters
 
 
-def check_rule_compliance(walk, ascenders, descenders, evens, odds):
+def check_rule_compliance(walk, ascenders, descenders, evens, odds, repeaters):
     """Check if a given walk complies with all rules."""
     for i, v in enumerate(walk):
         if v in ascenders:
@@ -152,6 +152,11 @@ def check_rule_compliance(walk, ascenders, descenders, evens, odds):
         if v in odds:
             if any(walk[j] % 2 == 0 for j in range(i + 1, len(walk))):
                 return False
+        if v in repeaters:
+            indices = [i for i, x in enumerate(walk) if x == v]
+            for j in range(len(indices) - 1):
+                if indices[j + 1] - indices[j] != repeaters[v]:
+                    return False
     return True
 
 
@@ -227,20 +232,22 @@ class EvenRule(Rule):
 
 class RepeaterRule(Rule):
     def __init__(self, repeaters):
-        self.member_nodes = repeaters
+        self.member_nodes = repeaters.keys()
+        self.members_nodes_dict = repeaters
 
-    def apply(self, graph, walk):
+    def apply(self, walk):
         walk = [int(item) for item in walk]
-        for v, k in self.member_nodes.items():
+        for v, k in self.members_nodes_dict.items():
             if v in walk:
+                #get all repeaters nodes in walk
                 indices = [i for i, x in enumerate(walk) if x == v]
                 for i in range(len(indices) - 1):
                     if indices[i + 1] - indices[i] != k:
                         return False
         return True
 
-    def get_violation_position(self, graph, walk):
-        for v, k in self.member_nodes.items():
+    def get_violation_position(self, walk):
+        for v, k in self.members_nodes_dict.items():
             if v in walk:
                 indices = [i for i, x in enumerate(walk) if x == v]
                 for i in range(len(indices) - 1):
