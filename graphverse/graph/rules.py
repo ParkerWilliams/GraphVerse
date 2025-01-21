@@ -232,10 +232,10 @@ class EvenRule(Rule):
 
 class RepeaterRule(Rule):
     def __init__(self, repeaters):
-        self.member_nodes = repeaters.keys()
+        self.member_nodes = set(repeaters.keys())
         self.members_nodes_dict = repeaters
 
-    def apply(self, walk):
+    def apply(self, graph, walk):
         walk = [int(item) for item in walk]
         for v, k in self.members_nodes_dict.items():
             if v in walk:

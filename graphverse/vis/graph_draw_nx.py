@@ -3,8 +3,7 @@ import networkx as nx
 
 # Draw the graph
 
-
-def visualize_graph(G):
+def visualize_graph(G, walk=None):
     # Create a new figure
     plt.figure(figsize=(12, 8))
 
@@ -16,11 +15,12 @@ def visualize_graph(G):
 
     # Draw the edges with varying thickness based on probability
     for u, v, data in G.edges(data=True):
+        
         nx.draw_networkx_edges(
             G,
             pos,
             edgelist=[(u, v)],
-            width=data["probability"] * 5,
+            width=1, #data["probability"] * 5,
             alpha=0.7,
             edge_color="gray",
             arrows=True,
@@ -32,9 +32,13 @@ def visualize_graph(G):
     nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif")
 
     # Draw the edge labels (probabilities)
-    edge_labels = nx.get_edge_attributes(G, "probability")
-    edge_labels = {k: f"{v:.2f}" for k, v in edge_labels.items()}
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+    # edge_labels = nx.get_edge_attributes(G, "probability")
+    # edge_labels = {k: f"{v:.2f}" for k, v in edge_labels.items()}
+    # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+
+    if walk is not None:
+        edge_list = [(walk[i], walk[i+1]) for i in range(len(walk)-1)]
+        nx.draw_networkx_edges(G, pos, edgelist=edge_list, edge_color='r', width=2)
 
     # Remove axis
     plt.axis("off")
