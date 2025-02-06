@@ -26,6 +26,8 @@ def generate_random_graph(
         print("Assigning rule designations to vertices...")
     ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
     for node in G.nodes():
+        if verbose:
+            print(f"node {node} being inspected")
         if node in ascender_rule.member_nodes:
             G.nodes[node]["rule"] = "ascender"
         elif node in descender_rule.member_nodes:
