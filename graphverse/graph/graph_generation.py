@@ -37,6 +37,7 @@ def generate_random_graph(
         elif node in odd_rule.member_nodes:
             G.nodes[node]["rule"] = "odd"
         elif node in repeater_rule.member_nodes:
+            print(f"node {node} is a repeater, the repeater set is {repeater_rule.member_nodes}")
             G.nodes[node]["rule"] = "repeater"
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
         else:
