@@ -2,124 +2,62 @@ import random
 from abc import ABC, abstractmethod
 
 
-
-def instantiate_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
-    """
-    Define all rule vertices while ensuring each vertex is assigned at most one rule.
-
-    :return: list of instantiated Rule objects
-    """
-    rule_vertices = set()
-
-    # Define ascenders
-    ascenders = define_ascenders(n, rule_vertices)
-    rule_vertices.update(ascenders)
-    ascender_rule_obj = AscenderRule(ascenders)
-
-    # Define descenders
-    descenders = define_descenders(n, rule_vertices)
-    rule_vertices.update(descenders)
-    descender_rule_obj = DescenderRule(descenders)
-
-    # Define evens and odds
-    evens, odds = define_evens_odds(n, rule_vertices)
-    rule_vertices.update(evens)
-    rule_vertices.update(odds)
-    evens_rule_obj = EvenRule(evens)
-    odds_rule_obj = OddRule(odds)
-
-    # Define repeaters
-    repeaters = define_repeaters(
-        n, num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices
-    )
-    repeater_rule_obj = RepeaterRule(repeaters)
-
-    return (
-        ascender_rule_obj,
-        descender_rule_obj,
-        evens_rule_obj,
-        odds_rule_obj,
-        repeater_rule_obj,
-    )
-
-
-
-
-
-
-
-
-
-def define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps):
+def define_all_rules(n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps):
     """
     Define all rule vertices while ensuring each vertex is assigned at most one rule.
     """
-    rule_vertices = set()
+    available_vertices = set(range(n))
 
-    # Define ascenders
-    ascenders = define_ascenders(n, rule_vertices)
-    rule_vertices.update(ascenders)
-
-    # Define descenders
-    descenders = define_descenders(n, rule_vertices)
-    rule_vertices.update(descenders)
-
+    # Define ascenders and descenders
+    ascenders, descenders = define_ascenders_descenders(n, num_ascenders, num_descenders, available_vertices)
+    
     # Define evens and odds
-    evens, odds = define_evens_odds(n, rule_vertices)
-    rule_vertices.update(evens)
-    rule_vertices.update(odds)
-
+    evens, odds = define_evens_odds(n, num_evens, num_odds, available_vertices)
+    
     # Define repeaters
-    repeaters = define_repeaters(
-        n, num_repeaters, repeater_min_steps, repeater_max_steps, rule_vertices
-    )
+    repeaters = define_repeaters(n, num_repeaters, repeater_min_steps, repeater_max_steps, available_vertices)
 
     return ascenders, descenders, evens, odds, repeaters
 
 
-def define_ascenders(n, existing_rule_vertices):
+def define_ascenders_descenders(n, num_ascenders, num_descenders, available_vertices):
     """
-    Define ascender vertices while ensuring they are not already assigned to another rule.
+    Define ascender and descender vertices while ensuring they are not already assigned to another rule.
+    Both types are selected from vertices near the middle of the range.
     """
-    available_vertices = set(range(n)) - existing_rule_vertices
     mid = n // 2
     range_start = int(mid * 0.9)
     range_end = int(mid * 1.1)
     candidates = [v for v in available_vertices if range_start <= v <= range_end]
-    return set(random.sample(candidates, k=min(len(candidates) // 5, len(candidates))))
+    
+    ascenders = set(random.sample(candidates, k=min(num_ascenders, len(candidates))))
+    available_vertices -= ascenders
+    
+    descenders = set(random.sample(
+        [v for v in candidates if v in available_vertices],  # Recheck availability
+        k=min(num_descenders, len(available_vertices))
+    ))
+    available_vertices -= descenders
+    
+    return ascenders, descenders
 
-
-def define_descenders(n, existing_rule_vertices):
-    """
-    Define descender vertices while ensuring they are not already assigned to another rule.
-    """
-    available_vertices = set(range(n)) - existing_rule_vertices
-    mid = n // 2
-    range_start = int(mid * 0.9)
-    range_end = int(mid * 1.1)
-    candidates = [v for v in available_vertices if range_start <= v <= range_end]
-    return set(random.sample(candidates, k=min(len(candidates) // 5, len(candidates))))
-
-
-def define_evens_odds(n, existing_rule_vertices):
+def define_evens_odds(n, num_evens, num_odds, available_vertices):
     """
     Randomly select even and odd vertices that are not already assigned to another rule.
     """
-    available_vertices = set(range(n)) - existing_rule_vertices
-    evens = set(
-        random.sample(
-            [v for v in available_vertices if v % 2 == 0],
-            k=min(n // 10, len(available_vertices)),
-        )
-    )
-    odds = set(
-        random.sample(
-            [v for v in available_vertices if v % 2 != 0],
-            k=min(n // 10, len(available_vertices)),
-        )
-    )
+    even_candidates = [v for v in available_vertices if v % 2 == 0]
+    odd_candidates = [v for v in available_vertices if v % 2 != 0]
+    
+    evens = set(random.sample(even_candidates, k=min(num_evens, len(even_candidates))))
+    available_vertices -= evens
+    
+    odds = set(random.sample(
+        [v for v in odd_candidates if v in available_vertices],  # Recheck availability
+        k=min(num_odds, len(available_vertices))
+    ))
+    available_vertices -= odds
+    
     return evens, odds
-
 
 def define_repeaters(
     n, num_repeaters, repeater_min_steps, repeater_max_steps, existing_rule_vertices
@@ -135,7 +73,6 @@ def define_repeaters(
             available_vertices.remove(v)
             repeaters[v] = random.randint(repeater_min_steps, repeater_max_steps)
     return repeaters
-
 
 def check_rule_compliance(walk, ascenders, descenders, evens, odds, repeaters):
     """Check if a given walk complies with all rules."""
@@ -159,7 +96,6 @@ def check_rule_compliance(walk, ascenders, descenders, evens, odds, repeaters):
                     return False
     return True
 
-
 class Rule(ABC):
     @abstractmethod
     def apply(self, walk, graph):
@@ -171,7 +107,6 @@ class Rule(ABC):
         :return: True if the rule is satisfied, False otherwise
         """
         pass
-
 
 class AscenderRule(Rule):
     def __init__(self, ascenders):
@@ -191,7 +126,6 @@ class AscenderRule(Rule):
                 return i + 1
         return None
 
-
 class DescenderRule(Rule):
     def __init__(self, descenders):
         self.member_nodes = descenders
@@ -210,7 +144,6 @@ class DescenderRule(Rule):
                 return i + 1
         return None
 
-
 class EvenRule(Rule):
     def __init__(self, evens):
         self.member_nodes = evens
@@ -228,7 +161,6 @@ class EvenRule(Rule):
             if walk[i] in self.member_nodes and walk[i + 1] % 2 != 0:
                 return i + 1
         return None
-
 
 class RepeaterRule(Rule):
     def __init__(self, repeaters):
@@ -255,7 +187,6 @@ class RepeaterRule(Rule):
                         return indices[i + 1]
         return None
 
-
 class OddRule(Rule):
     def __init__(self, odds):
         self.member_nodes = odds
@@ -273,7 +204,6 @@ class OddRule(Rule):
             if walk[i] in self.member_nodes and walk[i + 1] % 2 == 0:
                 return i + 1
         return None
-
 
 class EdgeExistenceRule(Rule):
     def apply(self, walk, graph):
