@@ -27,13 +27,18 @@ def generate_random_graph(
     
     ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
     
-    # Debugging: Print the initial state of repeater_rule.member_nodes
+    # Debug the initial state
     if verbose:
+        print(f"Initial repeater rule type: {type(repeater_rule)}")
         print(f"Initial repeater_rule.member_nodes: {repeater_rule.member_nodes}")
+        print(f"Initial repeater rule id: {id(repeater_rule)}")
     
     for node in G.nodes():
         if verbose:
-            print(f"node {node} being inspected")
+            print(f"\nProcessing node {node}")
+            print(f"Current repeater rule type: {type(repeater_rule)}")
+            print(f"Current repeater rule id: {id(repeater_rule)}")
+        
         # Start with no rule
         G.nodes[node]["rule"] = "none"
         
@@ -48,11 +53,17 @@ def generate_random_graph(
             G.nodes[node]["rule"] = "odd"
         elif node in repeater_rule.member_nodes:
             if verbose:
-                print(f"node {node} is a repeater, the repeater set is {repeater_rule.member_nodes}")
+                print(f"node {node} is a repeater")
+                print(f"Repeater rule type at assignment: {type(repeater_rule)}")
+                print(f"Repeater rule id at assignment: {id(repeater_rule)}")
             G.nodes[node]["rule"] = "repeater"
+            # Add safety check
+            if not hasattr(repeater_rule, 'members_nodes_dict'):
+                print(f"WARNING: repeater_rule is actually type {type(repeater_rule)}")
+                print(f"All rules types: {[type(r) for r in rules]}")
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
     
-    # Debugging: Print the final state of repeater_rule.member_nodes
+    # Debugging: Print the final state of repeater_rule.member_nodesÍ
     if verbose:
         print(f"Final repeater_rule.member_nodes: {repeater_rule.member_nodes}")
 
