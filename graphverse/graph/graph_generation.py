@@ -25,10 +25,11 @@ def generate_random_graph(
     if verbose:
         print("Assigning rule designations to vertices...")
     
-    # Debugging: Print the types of the rules
     ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
+    
+    # Debugging: Print the initial state of repeater_rule.member_nodes
     if verbose:
-        print(f"Rule types: {type(ascender_rule)}, {type(descender_rule)}, {type(even_rule)}, {type(odd_rule)}, {type(repeater_rule)}")
+        print(f"Initial repeater_rule.member_nodes: {repeater_rule.member_nodes}")
     
     for node in G.nodes():
         if verbose:
@@ -50,7 +51,11 @@ def generate_random_graph(
                 print(f"node {node} is a repeater, the repeater set is {repeater_rule.member_nodes}")
             G.nodes[node]["rule"] = "repeater"
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
-            
+    
+    # Debugging: Print the final state of repeater_rule.member_nodes
+    if verbose:
+        print(f"Final repeater_rule.member_nodes: {repeater_rule.member_nodes}")
+
     # Build the graph by adding edges that satisfy the rules
     if verbose:
         print("Building the graph by adding edges that satisfy the rules...")
