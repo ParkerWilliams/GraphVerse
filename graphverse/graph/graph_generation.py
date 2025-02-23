@@ -25,7 +25,16 @@ def generate_random_graph(
     if verbose:
         print("Assigning rule designations to vertices...")
     
-    ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
+    # Fix the unpacking order to match the order in the rules list
+    repeater_rule, odd_rule, ascender_rule, even_rule, descender_rule = rules
+    
+    if verbose:
+        print(f"Rule types after unpacking:")
+        print(f"repeater_rule: {type(repeater_rule)}")
+        print(f"odd_rule: {type(odd_rule)}")
+        print(f"ascender_rule: {type(ascender_rule)}")
+        print(f"even_rule: {type(even_rule)}")
+        print(f"descender_rule: {type(descender_rule)}")
     
     # Debug the initial state
     if verbose:
