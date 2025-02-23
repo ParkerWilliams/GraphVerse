@@ -24,7 +24,12 @@ def generate_random_graph(
     # Assign rule designations to vertices
     if verbose:
         print("Assigning rule designations to vertices...")
+    
+    # Debugging: Print the types of the rules
     ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule = rules
+    if verbose:
+        print(f"Rule types: {type(ascender_rule)}, {type(descender_rule)}, {type(even_rule)}, {type(odd_rule)}, {type(repeater_rule)}")
+    
     for node in G.nodes():
         if verbose:
             print(f"node {node} being inspected")
