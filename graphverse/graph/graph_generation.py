@@ -28,24 +28,23 @@ def generate_random_graph(
     for node in G.nodes():
         if verbose:
             print(f"node {node} being inspected")
+        #start with no rule
+        G.nodes[node]["rule"] = (
+                "none" 
+            )
         if node in ascender_rule.member_nodes:
             G.nodes[node]["rule"] = "ascender"
-        elif node in descender_rule.member_nodes:
+        if node in descender_rule.member_nodes:
             G.nodes[node]["rule"] = "descender"
-        elif node in even_rule.member_nodes:
+        if node in even_rule.member_nodes:
             G.nodes[node]["rule"] = "even"
-        elif node in odd_rule.member_nodes:
+        if node in odd_rule.member_nodes:
             G.nodes[node]["rule"] = "odd"
-        elif node in repeater_rule.member_nodes:
+        if node in repeater_rule.member_nodes:
             print(f"node {node} is a repeater, the repeater set is {repeater_rule.member_nodes}")
             G.nodes[node]["rule"] = "repeater"
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
-        else:
-             # Assign 'none' rule for nodes without a specific rule
-            G.nodes[node]["rule"] = (
-                "none" 
-            )
-
+            
     # Build the graph by adding edges that satisfy the rules
     if verbose:
         print("Building the graph by adding edges that satisfy the rules...")

@@ -46,7 +46,7 @@ def main(
     if verbose:
         print("Selecting vertices with rules")
     ascenders, descenders, evens, odds, repeaters = define_all_rules(
-        n, num_repeaters, repeater_min_steps, repeater_max_steps
+        n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps
     )
 
     # Create rule objects
