@@ -3,6 +3,7 @@ import random
 import networkx as nx
 
 from .walk import generate_multiple_walks
+from .rules import RepeaterRule, AscenderRule, DescenderRule, EvenRule, OddRule
 
 
 def generate_random_graph(
@@ -21,15 +22,15 @@ def generate_random_graph(
         print(f"Adding {n} nodes...")
     G.add_nodes_from(range(n))
 
-    # Assign rule designations to vertices
-    if verbose:
-        print("Assigning rule designations to vertices...")
+    # Find the correct rule instances
+    repeater_rule = next(rule for rule in rules if isinstance(rule, RepeaterRule))
+    ascender_rule = next(rule for rule in rules if isinstance(rule, AscenderRule))
+    descender_rule = next(rule for rule in rules if isinstance(rule, DescenderRule))
+    even_rule = next(rule for rule in rules if isinstance(rule, EvenRule))
+    odd_rule = next(rule for rule in rules if isinstance(rule, OddRule))
     
-    # Fix the unpacking order to match the order in the rules list
-    repeater_rule, odd_rule, ascender_rule, even_rule, descender_rule = rules
-    
     if verbose:
-        print(f"Rule types after unpacking:")
+        print(f"Rule types after finding:")
         print(f"repeater_rule: {type(repeater_rule)}")
         print(f"odd_rule: {type(odd_rule)}")
         print(f"ascender_rule: {type(ascender_rule)}")
