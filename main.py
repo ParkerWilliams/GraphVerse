@@ -63,7 +63,14 @@ def main(
     if verbose:
         print("Generating graph")
     G = generate_random_graph(
-        n, rules, verbose=verbose, save_walks=True, output_dir="walks"
+        n=n,
+        rules=rules,
+        num_walks=num_walks,
+        min_walk_length=min_walk_length,
+        max_walk_length=max_walk_length,
+        verbose=verbose,
+        save_walks=True,
+        output_dir="walks"
     )
 
     if verbose:

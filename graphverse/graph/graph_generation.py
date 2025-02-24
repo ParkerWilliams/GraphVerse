@@ -47,7 +47,8 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
 
 
 def generate_random_graph(
-    n, rules, verbose=False, save_walks=False, output_dir="walks"
+    n, rules, num_walks=1000, min_walk_length=5, max_walk_length=20, 
+    verbose=False, save_walks=False, output_dir="walks"
 ):
     if verbose:
         print("Generating random graph...")
@@ -163,7 +164,10 @@ def generate_random_graph(
     if save_walks:
         if verbose:
             print("\nGenerating walks...")
-        walks = generate_multiple_walks(G, rules, verbose=verbose)
+        walks = generate_multiple_walks(
+            G, num_walks, min_walk_length, max_walk_length, 
+            rules, verbose=verbose
+        )
         if verbose:
             print("\nSaving walks...")
         save_walks_to_files(walks, output_dir, verbose=verbose)
