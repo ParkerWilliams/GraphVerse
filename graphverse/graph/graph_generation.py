@@ -54,13 +54,9 @@ def generate_random_graph(
         print("Generating random graph...")
 
     # Create an empty directed graph
-    if verbose:
-        print("Creating an empty directed graph...")
     G = nx.DiGraph()
 
     # Add nodes
-    if verbose:
-        print(f"Adding {n} nodes...")
     G.add_nodes_from(range(n))
 
     # Find the correct rule instances
@@ -78,8 +74,8 @@ def generate_random_graph(
         print(f"even_rule: {type(even_rule)}")
         print(f"descender_rule: {type(descender_rule)}")
     
-    # Use tqdm for the node processing loop
-    for node in tqdm(G.nodes(), desc="Processing nodes", disable=not verbose):
+    # Use tqdm for the node processing loop - always show progress
+    for node in tqdm(G.nodes(), desc="Assigning rules to nodes"):
         # Start with no rule
         G.nodes[node]["rule"] = "none"
         
@@ -98,10 +94,8 @@ def generate_random_graph(
             G.nodes[node]["rule"] = "repeater"
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
 
-    # Build the graph by adding edges that satisfy the rules
-    if verbose:
-        print("\nBuilding the graph by adding edges that satisfy the rules...")
-    for node in tqdm(G.nodes(), desc="Adding edges", disable=not verbose):
+    # Build the graph by adding edges that satisfy the rules - always show progress
+    for node in tqdm(G.nodes(), desc="Adding edges to graph"):
         rule = G.nodes[node]["rule"]
         if rule == "ascender":
             # Add edges to higher-numbered nodes
@@ -147,11 +141,7 @@ def generate_random_graph(
                     G.add_edge(node, v)
 
     # Assign random probability distributions to outgoing edges
-    if verbose:
-        print("Assigning random probability distributions to outgoing edges...")
-    for node in G.nodes():
-        if verbose:
-            print(f"Processing node {node}...")
+    for node in tqdm(G.nodes(), desc="Assigning edge probabilities"):
         out_edges = list(G.out_edges(node))
         if out_edges:
             probabilities = [random.random() for _ in range(len(out_edges))]
