@@ -1,13 +1,53 @@
 import random
-
+import json
+from pathlib import Path
+from tqdm import tqdm
 import networkx as nx
 
 from .walk import generate_multiple_walks
 from .rules import RepeaterRule, AscenderRule, DescenderRule, EvenRule, OddRule
 
 
+def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=False):
+    """
+    Save walks to multiple files, ensuring each file is under max_file_size (in bytes).
+    
+    Args:
+        walks: List of walks to save
+        output_dir: Directory to save the files
+        max_file_size: Maximum file size in bytes (default 50MB)
+        verbose: Whether to print progress
+    """
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    walks_per_file = len(walks) // 10  # Start with rough estimate of 10 files
+    current_file = 0
+    start_idx = 0
+    
+    while start_idx < len(walks):
+        # Try to write a chunk of walks
+        test_walks = walks[start_idx:start_idx + walks_per_file]
+        test_json = json.dumps(test_walks)
+        
+        # If file would be too large, reduce walks_per_file
+        if len(test_json.encode('utf-8')) > max_file_size:
+            walks_per_file = walks_per_file // 2
+            continue
+            
+        # Save the walks
+        output_file = Path(output_dir) / f"walks_{current_file}.json"
+        with open(output_file, 'w') as f:
+            json.dump(test_walks, f)
+            
+        if verbose:
+            print(f"Saved {len(test_walks)} walks to {output_file}")
+            
+        start_idx += walks_per_file
+        current_file += 1
+
+
 def generate_random_graph(
-    n, rules, verbose=False
+    n, rules, verbose=False, save_walks=False, output_dir="walks"
 ):
     if verbose:
         print("Generating random graph...")
@@ -37,18 +77,8 @@ def generate_random_graph(
         print(f"even_rule: {type(even_rule)}")
         print(f"descender_rule: {type(descender_rule)}")
     
-    # Debug the initial state
-    if verbose:
-        print(f"Initial repeater rule type: {type(repeater_rule)}")
-        print(f"Initial repeater_rule.member_nodes: {repeater_rule.member_nodes}")
-        print(f"Initial repeater rule id: {id(repeater_rule)}")
-    
-    for node in G.nodes():
-        if verbose:
-            print(f"\nProcessing node {node}")
-            print(f"Current repeater rule type: {type(repeater_rule)}")
-            print(f"Current repeater rule id: {id(repeater_rule)}")
-        
+    # Use tqdm for the node processing loop
+    for node in tqdm(G.nodes(), desc="Processing nodes", disable=not verbose):
         # Start with no rule
         G.nodes[node]["rule"] = "none"
         
@@ -63,26 +93,14 @@ def generate_random_graph(
             G.nodes[node]["rule"] = "odd"
         elif node in repeater_rule.member_nodes:
             if verbose:
-                print(f"node {node} is a repeater")
-                print(f"Repeater rule type at assignment: {type(repeater_rule)}")
-                print(f"Repeater rule id at assignment: {id(repeater_rule)}")
+                print(f"\nnode {node} is a repeater")
             G.nodes[node]["rule"] = "repeater"
-            # Add safety check
-            if not hasattr(repeater_rule, 'members_nodes_dict'):
-                print(f"WARNING: repeater_rule is actually type {type(repeater_rule)}")
-                print(f"All rules types: {[type(r) for r in rules]}")
             G.nodes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
-    
-    # Debugging: Print the final state of repeater_rule.member_nodesÍ
-    if verbose:
-        print(f"Final repeater_rule.member_nodes: {repeater_rule.member_nodes}")
 
     # Build the graph by adding edges that satisfy the rules
     if verbose:
-        print("Building the graph by adding edges that satisfy the rules...")
-    for node in G.nodes():
-        if verbose:
-            print(f"Processing node {node}...")
+        print("\nBuilding the graph by adding edges that satisfy the rules...")
+    for node in tqdm(G.nodes(), desc="Adding edges", disable=not verbose):
         rule = G.nodes[node]["rule"]
         if rule == "ascender":
             # Add edges to higher-numbered nodes
@@ -140,6 +158,15 @@ def generate_random_graph(
             normalized_probabilities = [p / total for p in probabilities]
             for (u, v), prob in zip(out_edges, normalized_probabilities):
                 G[u][v]["probability"] = prob
+
+    # Generate and save walks if requested
+    if save_walks:
+        if verbose:
+            print("\nGenerating walks...")
+        walks = generate_multiple_walks(G, rules, verbose=verbose)
+        if verbose:
+            print("\nSaving walks...")
+        save_walks_to_files(walks, output_dir, verbose=verbose)
 
     if verbose:
         print("Random graph generated successfully.")
