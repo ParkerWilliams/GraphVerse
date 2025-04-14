@@ -31,14 +31,17 @@ def generate_valid_walk(
     walk = [start_vertex]
     attempts = 0
 
+    
+    # gnodes = np.array(graph.nodes())
+    valid_neighbors = [
+        neighbor
+        for neighbor in graph.nodes()
+        if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
+    ]
+
     while len(walk) < target_length:
         if verbose:
             print(f"Current walk: {walk}, Target length: {target_length}")
-        valid_neighbors = [
-            neighbor
-            for neighbor in graph.nodes()
-            if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
-        ]
 
         if not valid_neighbors:
             attempts += 1
