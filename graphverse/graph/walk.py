@@ -1,4 +1,5 @@
 import random
+from tqdm import tqdm
 
 from .rules import Rule
 
@@ -85,6 +86,10 @@ def generate_multiple_walks(
     max_attempts = 10
     total_attempts = 0
 
+    # Initialize progress bar
+    pbar = tqdm(total=num_walks, desc="Generating walks")
+    current_walks = 0
+
     while len(walks) < num_walks:
         if verbose:
             print(
@@ -98,6 +103,10 @@ def generate_multiple_walks(
         if walk:
             walks.append(walk)
             attempts = 0
+            # Update progress bar
+            new_walks = len(walks) - current_walks
+            pbar.update(new_walks)
+            current_walks = len(walks)
         else:
             attempts += 1
             total_attempts += 1
@@ -107,6 +116,7 @@ def generate_multiple_walks(
                     print("Maximum attempts reached. Resetting attempts counter.")
                 attempts = 0
 
+    pbar.close()
     if verbose:
         print(f"{len(walks)} walks generated successfully.")
     return walks
