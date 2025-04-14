@@ -1,17 +1,20 @@
-import random
 import json
+import random
 from pathlib import Path
-from tqdm import tqdm
+
 import networkx as nx
+from tqdm import tqdm
 
+from .rules import AscenderRule, DescenderRule, EvenRule, OddRule, RepeaterRule
 from .walk import generate_multiple_walks
-from .rules import RepeaterRule, AscenderRule, DescenderRule, EvenRule, OddRule
 
 
-def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=False):
+def save_walks_to_files(
+    walks, output_dir, max_file_size=50 * 1024 * 1024, verbose=False
+):
     """
     Save walks to multiple files, ensuring each file is under max_file_size (in bytes).
-    
+
     Args:
         walks: List of walks to save
         output_dir: Directory to save the files
@@ -19,36 +22,42 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
         verbose: Whether to print progress
     """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
+
     walks_per_file = len(walks) // 10  # Start with rough estimate of 10 files
     current_file = 0
     start_idx = 0
-    
+
     while start_idx < len(walks):
         # Try to write a chunk of walks
-        test_walks = walks[start_idx:start_idx + walks_per_file]
+        test_walks = walks[start_idx : start_idx + walks_per_file]
         test_json = json.dumps(test_walks)
-        
+
         # If file would be too large, reduce walks_per_file
-        if len(test_json.encode('utf-8')) > max_file_size:
+        if len(test_json.encode("utf-8")) > max_file_size:
             walks_per_file = walks_per_file // 2
             continue
-            
+
         # Save the walks
         output_file = Path(output_dir) / f"walks_{current_file}.json"
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(test_walks, f)
-            
+
         if verbose:
             print(f"Saved {len(test_walks)} walks to {output_file}")
-            
+
         start_idx += walks_per_file
         current_file += 1
 
 
 def generate_random_graph(
-    n, rules, num_walks=1000, min_walk_length=5, max_walk_length=20, 
-    verbose=False, save_walks=False, output_dir="walks"
+    n,
+    rules,
+    num_walks=1000,
+    min_walk_length=5,
+    max_walk_length=20,
+    verbose=False,
+    save_walks=False,
+    output_dir="walks",
 ):
     if verbose:
         print("Generating random graph...")
@@ -65,7 +74,7 @@ def generate_random_graph(
     descender_rule = next(rule for rule in rules if isinstance(rule, DescenderRule))
     even_rule = next(rule for rule in rules if isinstance(rule, EvenRule))
     odd_rule = next(rule for rule in rules if isinstance(rule, OddRule))
-    
+
     if verbose:
         print(f"Rule types after finding:")
         print(f"repeater_rule: {type(repeater_rule)}")
@@ -73,12 +82,12 @@ def generate_random_graph(
         print(f"ascender_rule: {type(ascender_rule)}")
         print(f"even_rule: {type(even_rule)}")
         print(f"descender_rule: {type(descender_rule)}")
-    
+
     # Use tqdm for the node processing loop - always show progress
     for node in tqdm(G.nodes(), desc="Assigning rules to nodes"):
         # Start with no rule
         G.nodes[node]["rule"] = "none"
-        
+
         # Check and assign the correct rule
         if node in ascender_rule.member_nodes:
             G.nodes[node]["rule"] = "ascender"
@@ -155,8 +164,7 @@ def generate_random_graph(
         if verbose:
             print("\nGenerating walks...")
         walks = generate_multiple_walks(
-            G, num_walks, min_walk_length, max_walk_length, 
-            rules, verbose=verbose
+            G, num_walks, min_walk_length, max_walk_length, rules, verbose=verbose
         )
         if verbose:
             print("\nSaving walks...")

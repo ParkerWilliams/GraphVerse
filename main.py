@@ -42,11 +42,18 @@ def main(
     verbose=False,
 ):
     # Define rule sets
-    #def define_all_rules(n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps):
+    # def define_all_rules(n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps):
     if verbose:
         print("Selecting vertices with rules")
     ascenders, descenders, evens, odds, repeaters = define_all_rules(
-        n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps
+        n,
+        num_ascenders,
+        num_descenders,
+        num_evens,
+        num_odds,
+        num_repeaters,
+        repeater_min_steps,
+        repeater_max_steps,
     )
 
     # Create rule objects
@@ -70,7 +77,7 @@ def main(
         max_walk_length=max_walk_length,
         verbose=verbose,
         save_walks=True,
-        output_dir="walks"
+        output_dir="walks",
     )
 
     if verbose:
@@ -125,7 +132,7 @@ if __name__ == "__main__":
         num_walks,
         min_walk_length,
         max_walk_length,
-        num_ascenders, 
+        num_ascenders,
         num_descenders,
         num_evens,
         num_odds,

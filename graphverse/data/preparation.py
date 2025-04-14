@@ -1,5 +1,5 @@
-import torch
 import numpy as np
+import torch
 
 from ..graph.walk import generate_multiple_walks, generate_valid_walk
 
@@ -14,11 +14,11 @@ class WalkVocabulary:
         nodes = range(0, max_node + 1)
         self.token2idx = {
             **{str(x): x for x in nodes},
-            **{"<PAD>": max_node + 1, "<START>": max_node + 2, "<END>": max_node + 3}
+            **{"<PAD>": max_node + 1, "<START>": max_node + 2, "<END>": max_node + 3},
         }
         self.idx2token = {
             **{x: str(x) for x in nodes},
-            **{max_node + 1: "<PAD>", max_node + 2: "<START>", max_node + 3: "<END>"}
+            **{max_node + 1: "<PAD>", max_node + 2: "<START>", max_node + 3: "<END>"},
         }
         # self. = {}
         # self.build_vocab(walks)

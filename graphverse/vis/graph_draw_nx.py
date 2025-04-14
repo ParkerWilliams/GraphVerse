@@ -1,6 +1,8 @@
+import itertools as it
+
 import matplotlib.pyplot as plt
 import networkx as nx
-import itertools as it
+
 
 def _get_n_colors_from_cmap(n_samples, cmap_name="viridis", vmin=None, vmax=None):
     """
@@ -8,7 +10,6 @@ def _get_n_colors_from_cmap(n_samples, cmap_name="viridis", vmin=None, vmax=None
     """
     cmap = plt.get_cmap(cmap_name)
     return [cmap(i) for i in np.linspace(vmin or 0, vmax or 1, n_samples)]
-
 
 
 def visualize_graph(G, walk=None):
@@ -25,12 +26,11 @@ def visualize_graph(G, walk=None):
 
     # Draw the edges with varying thickness based on probability
     for u, v, data in G.edges(data=True):
-        
         nx.draw_networkx_edges(
             G,
             pos,
             edgelist=[(u, v)],
-            width=1, #data["probability"] * 5,
+            width=1,  # data["probability"] * 5,
             alpha=0.7,
             edge_color="gray",
             arrows=True,
@@ -47,12 +47,15 @@ def visualize_graph(G, walk=None):
     # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
 
     if walk is not None:
-        edge_list = [(walk[i], walk[i+1]) for i in range(len(walk)-1)]
+        edge_list = [(walk[i], walk[i + 1]) for i in range(len(walk) - 1)]
         nx.draw_networkx_edges(
-            G, pos, edgelist=edge_list,
-            edge_color=_get_n_colors_from_cmap(len(walk), cmap_name="magma", vmin=0.3, vmax=0.8),
+            G,
+            pos,
+            edgelist=edge_list,
+            edge_color=_get_n_colors_from_cmap(
+                len(walk), cmap_name="magma", vmin=0.3, vmax=0.8
+            ),
             width=4,
-
             arrows=True,
             arrowsize=20,
             # connectionstyle=connectionstyle

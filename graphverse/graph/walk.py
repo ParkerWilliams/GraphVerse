@@ -1,4 +1,5 @@
 import random
+
 from tqdm import tqdm
 
 from .rules import Rule
@@ -31,7 +32,6 @@ def generate_valid_walk(
     walk = [start_vertex]
     attempts = 0
 
-    
     # gnodes = np.array(graph.nodes())
     valid_neighbors = [
         neighbor

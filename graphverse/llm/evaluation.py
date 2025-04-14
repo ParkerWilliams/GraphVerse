@@ -25,7 +25,11 @@ def evaluate_model(
 
         # start_length = random.randint(min_start_length, max_start_length)
         start_walk = generate_valid_walk(
-            graph, random.choice(list(graph.nodes)), min_start_length, max_start_length, rules
+            graph,
+            random.choice(list(graph.nodes)),
+            min_start_length,
+            max_start_length,
+            rules,
         )
 
         print(start_walk)
