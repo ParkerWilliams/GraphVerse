@@ -1,101 +1,69 @@
 import random
+import numpy as np
 from tqdm import tqdm
 
 from .rules import Rule
 
 
 def check_rule_compliance(graph, walk, rules, verbose=False):
-    if verbose:
-        print(f"Checking rule compliance for walk: {walk}")
+    """Check if a walk complies with all rules."""
     for rule in rules:
-        if verbose:
-            print(f"Checking rule: {rule.__class__.__name__}")
-        result = rule.apply(graph, walk)
-        if not result:
-            if verbose:
-                print(f"Rule {rule.__class__.__name__} violated for walk: {walk}")
+        if not rule.apply(graph, walk):
             return False
-    if verbose:
-        print(f"Rule compliance check completed for walk: {walk}")
     return True
 
 
 def generate_valid_walk(
     graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False
 ):
-    if verbose:
-        print(
-            f"Generating valid walk starting from vertex {start_vertex} with rules: {[rule.__class__.__name__ for rule in rules]}"
-        )
+    """Generate a single valid walk starting from start_vertex."""
     target_length = random.randint(min_length, max_length)
     walk = [start_vertex]
     attempts = 0
 
     while len(walk) < target_length:
-        if verbose:
-            print(f"Current walk: {walk}, Target length: {target_length}")
-        valid_neighbors = [
-            neighbor
-            for neighbor in graph.nodes()
-            if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
-        ]
-
-        if not valid_neighbors:
+        current_node = walk[-1]
+        neighbors, probs = graph.get_edge_probabilities(current_node)
+        
+        if len(neighbors) == 0:
             attempts += 1
-            if verbose:
-                print(f"No valid neighbors found. Attempts: {attempts}/{max_attempts}")
-
             if attempts >= max_attempts:
-                if verbose:
-                    print("Maximum attempts reached. Resetting walk.")
                 walk = [start_vertex]
                 attempts = 0
             else:
-                if verbose:
-                    print("Backtracking...")
                 walk.pop()
         else:
-            next_vertex = random.choice(valid_neighbors)
-            if verbose:
-                print(f"Adding vertex {next_vertex} to the walk.")
-
-            if not graph.has_edge(walk[-1], next_vertex):
-                if verbose:
-                    print(f"Adding edge {walk[-1]} -> {next_vertex}")
-                graph.add_edge(walk[-1], next_vertex)
-
+            # Sample next node based on probabilities
+            next_vertex = np.random.choice(neighbors, p=probs)
             walk.append(next_vertex)
+            
+            # Check if the new walk segment violates any rules
+            if not check_rule_compliance(graph, walk, rules, verbose):
+                walk.pop()
+                attempts += 1
+                if attempts >= max_attempts:
+                    walk = [start_vertex]
+                    attempts = 0
 
-    if len(walk) >= min_length:
-        if verbose:
-            print(f"Valid walk generated: {walk}")
+    if len(walk) >= min_length and check_rule_compliance(graph, walk, rules, verbose):
         return walk
-    else:
-        if verbose:
-            print("Failed to generate a valid walk.")
-        return None
+    return None
 
 
 def generate_multiple_walks(
     graph, num_walks, min_length, max_length, rules, verbose=False
 ):
-    if verbose:
-        print(f"Generating {num_walks} walks...")
+    """Generate multiple valid walks on the graph."""
     walks = []
     attempts = 0
     max_attempts = 10
     total_attempts = 0
 
-    # Initialize progress bar
     pbar = tqdm(total=num_walks, desc="Generating walks")
     current_walks = 0
 
     while len(walks) < num_walks:
-        if verbose:
-            print(
-                f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}"
-            )
-        start_vertex = random.choice(list(graph.nodes()))
+        start_vertex = random.randint(0, graph.n - 1)
         walk = generate_valid_walk(
             graph, start_vertex, min_length, max_length, rules, max_attempts, verbose
         )
@@ -103,7 +71,6 @@ def generate_multiple_walks(
         if walk:
             walks.append(walk)
             attempts = 0
-            # Update progress bar
             new_walks = len(walks) - current_walks
             pbar.update(new_walks)
             current_walks = len(walks)
@@ -112,11 +79,7 @@ def generate_multiple_walks(
             total_attempts += 1
 
             if attempts >= max_attempts:
-                if verbose:
-                    print("Maximum attempts reached. Resetting attempts counter.")
                 attempts = 0
 
     pbar.close()
-    if verbose:
-        print(f"{len(walks)} walks generated successfully.")
     return walks

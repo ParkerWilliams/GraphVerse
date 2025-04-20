@@ -1,10 +1,9 @@
 import math
 import random
 
-import matplotlib.pyplot as plt
-import networkx as nx
 import pandas as pd
 import torch
+import numpy as np
 
 from graphverse.data.preparation import prepare_training_data
 from graphverse.graph.graph_generation import (
@@ -13,15 +12,14 @@ from graphverse.graph.graph_generation import (
 )
 from graphverse.graph.rules import (
     AscenderRule,
-    DescenderRule,
     EvenRule,
-    OddRule,
     RepeaterRule,
     define_all_rules,
 )
 from graphverse.graph.walk import generate_multiple_walks
 from graphverse.llm.evaluation import evaluate_model
 from graphverse.llm.training import train_model
+from graphverse.graph.base import Graph
 
 
 def main(
@@ -30,9 +28,7 @@ def main(
     min_walk_length,
     max_walk_length,
     num_ascenders,
-    num_descenders,
     num_evens,
-    num_odds,
     num_repeaters,
     repeater_min_steps,
     repeater_max_steps,
@@ -42,22 +38,19 @@ def main(
     verbose=False,
 ):
     # Define rule sets
-    #def define_all_rules(n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps):
     if verbose:
         print("Selecting vertices with rules")
-    ascenders, descenders, evens, odds, repeaters = define_all_rules(
-        n, num_ascenders, num_descenders, num_evens, num_odds, num_repeaters, repeater_min_steps, repeater_max_steps
+    ascenders, evens, repeaters = define_all_rules(
+        n, num_ascenders, num_evens, num_repeaters, repeater_min_steps, repeater_max_steps
     )
 
     # Create rule objects
     ascender_rule = AscenderRule(ascenders)
-    descender_rule = DescenderRule(descenders)
     even_rule = EvenRule(evens)
-    odd_rule = OddRule(odds)
     repeater_rule = RepeaterRule(repeaters)
 
     # Set of rules
-    rules = {ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule}
+    rules = {ascender_rule, even_rule, repeater_rule}
 
     # Generate graph
     if verbose:
@@ -75,10 +68,9 @@ def main(
 
     if verbose:
         print(f"Graph created")
-        print(f"Number of nodes: {G.number_of_nodes()}")
-        print(f"Number of edges: {G.number_of_edges()}")
-        print(f"Is strongly connected: {nx.is_strongly_connected(G)}")
-        print(f"Is weakly connected: {nx.is_weakly_connected(G)}")
+        print(f"Number of nodes: {G.n}")
+        print(f"Number of edges: {np.sum(G.adjacency > 0)}")
+        print(f"Is connected: {G.is_connected()}")
         print(f"Now preparing training data")
 
     # Prepare training data
@@ -109,9 +101,7 @@ if __name__ == "__main__":
     min_walk_length = 5
     max_walk_length = 20
     num_ascenders = 10
-    num_descenders = 10
     num_evens = 10
-    num_odds = 10
     num_repeaters = 10
     repeater_min_steps = 3
     repeater_max_steps = 10
@@ -125,10 +115,8 @@ if __name__ == "__main__":
         num_walks,
         min_walk_length,
         max_walk_length,
-        num_ascenders, 
-        num_descenders,
+        num_ascenders,
         num_evens,
-        num_odds,
         num_repeaters,
         repeater_min_steps,
         repeater_max_steps,
