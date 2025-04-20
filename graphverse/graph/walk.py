@@ -17,6 +17,17 @@ def generate_valid_walk(
     graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False
 ):
     """Generate a single valid walk starting from start_vertex."""
+    # Input validation
+    if start_vertex is None or not isinstance(start_vertex, (int, np.integer)):
+        if verbose:
+            print(f"Invalid start vertex: {start_vertex}")
+        return None
+        
+    if start_vertex < 0 or start_vertex >= graph.n:
+        if verbose:
+            print(f"Start vertex {start_vertex} out of bounds [0, {graph.n-1}]")
+        return None
+
     target_length = random.randint(min_length, max_length)
     walk = [start_vertex]
     attempts = 0
