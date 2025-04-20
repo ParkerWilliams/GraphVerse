@@ -74,32 +74,46 @@ def generate_random_graph(
             G.node_attributes[node]["rule"] = "repeater"
             G.node_attributes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
 
-    # Add edges based on rules
-    for node in tqdm(range(n), desc="Adding edges to graph"):
+    # First handle repeater nodes to ensure valid paths exist
+    for node in tqdm(range(n), desc="Setting up repeater paths"):
+        if G.node_attributes[node]["rule"] == "repeater":
+            repetitions = G.node_attributes[node]["repetitions"]
+            
+            # Find valid intermediate nodes (not even-rule nodes)
+            valid_nodes = [
+                v for v in range(n)
+                if v != node
+                and G.node_attributes[v]["rule"] != "even"
+                and v not in repeater_rule.member_nodes  # Avoid other repeaters
+            ]
+            
+            if len(valid_nodes) < repetitions:
+                raise ValueError(f"Not enough valid nodes for repeater {node} with {repetitions} repetitions")
+            
+            # Select nodes for the path
+            path_nodes = random.sample(valid_nodes, k=repetitions)
+            
+            # Add edges to create the path
+            for path_node in path_nodes:
+                G.add_edge(node, path_node)
+                # Add return edge to allow getting back to repeater
+                G.add_edge(path_node, node)
+
+    # Now add edges for other rules
+    for node in tqdm(range(n), desc="Adding remaining edges"):
         rule = G.node_attributes[node]["rule"]
         
         if rule == "ascender":
             candidates = [v for v in range(n) if v > node]
             if candidates:
-                num_edges = random.randint(1, len(candidates))
+                num_edges = random.randint(1, min(len(candidates), 5))  # Limit max edges
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
         elif rule == "even":
             candidates = [v for v in range(n) if v % 2 == 0]
             if candidates:
-                num_edges = random.randint(1, len(candidates))
+                num_edges = random.randint(1, min(len(candidates), 5))  # Limit max edges
                 for v in random.sample(candidates, num_edges):
-                    G.add_edge(node, v)
-        elif rule == "repeater":
-            repetitions = G.node_attributes[node]["repetitions"]
-            candidates = [
-                v for v in range(n)
-                if v != node
-                and G.node_attributes[v]["rule"] != "even"
-            ]
-            if candidates:
-                for _ in range(repetitions):
-                    v = random.choice(candidates)
                     G.add_edge(node, v)
 
     # Assign random edge weights (probabilities)
