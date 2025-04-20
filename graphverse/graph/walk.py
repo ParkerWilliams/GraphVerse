@@ -29,21 +29,21 @@ def generate_valid_walk(
         return None
 
     target_length = random.randint(min_length, max_length)
-    walk = [start_vertex]
     attempts = 0
-
-    while len(walk) < target_length:
-        current_node = walk[-1]
-        neighbors, probs = graph.get_edge_probabilities(current_node)
+    
+    while attempts < max_attempts:
+        # Start a new walk
+        walk = [start_vertex]
         
-        if len(neighbors) == 0:
-            attempts += 1
-            if attempts >= max_attempts:
-                walk = [start_vertex]
-                attempts = 0
-            else:
-                walk.pop()
-        else:
+        # Try to extend the walk to target length
+        while len(walk) < target_length:
+            current_node = walk[-1] 
+            neighbors, probs = graph.get_edge_probabilities(current_node)
+            
+            if len(neighbors) == 0:
+                # Dead end - abandon this walk
+                break
+            
             # Sample next node based on probabilities
             next_vertex = np.random.choice(neighbors, p=probs)
             walk.append(next_vertex)
@@ -51,13 +51,16 @@ def generate_valid_walk(
             # Check if the new walk segment violates any rules
             if not check_rule_compliance(graph, walk, rules, verbose):
                 walk.pop()
-                attempts += 1
-                if attempts >= max_attempts:
-                    walk = [start_vertex]
-                    attempts = 0
-
-    if len(walk) >= min_length and check_rule_compliance(graph, walk, rules, verbose):
-        return walk
+                break
+        
+        # Check if we got a valid walk
+        if len(walk) >= min_length and check_rule_compliance(graph, walk, rules, verbose):
+            return walk
+            
+        attempts += 1
+        
+    if verbose:
+        print(f"Failed to generate valid walk after {max_attempts} attempts")
     return None
 
 
