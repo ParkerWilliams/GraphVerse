@@ -74,7 +74,7 @@ def train_model(
             
             # Reshape for loss calculation
             B, T, V = logits.shape
-            loss = criterion(logits.view(-1, V), target_seq.view(-1))
+            loss = criterion(logits.reshape(-1, V), target_seq.reshape(-1))
             
             # Backward pass
             optimizer.zero_grad()

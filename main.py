@@ -85,13 +85,16 @@ def main(
     if verbose:
         print(f"Training data prepared")
 
+    # Define device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     # Train model
     if verbose:
         print(f"Training model")
     model = train_model(
         training_data=training_data, 
         vocab=vocab, 
-        hidden_size=512,  # Ensure this matches the model's hidden size
+        hidden_size=512,  # Ensure this matches the model's hidden size and is divisible by num_heads
         num_layers=6,     # Ensure this matches the model's number of layers
         num_heads=8,      # Ensure this matches the model's number of heads
         dropout=0.1,      # Ensure this matches the model's dropout
