@@ -269,6 +269,15 @@ def generate_random_graph(
 
     print_density_stats("After density enforcement")
 
+    # Ensure each node has at least one outgoing edge
+    for node in range(n):
+        if np.sum(G.adjacency[node] > 0) == 0:  # No outgoing edges
+            # Randomly select a target node that is not the current node
+            target = random.choice([v for v in range(n) if v != node])
+            G.add_edge(node, target)
+
+    print_density_stats("After ensuring each node has an outgoing edge")
+
     # Assign random edge weights (probabilities)
     for node in tqdm(range(n), desc="Assigning edge probabilities"):
         neighbors = G.get_neighbors(node)
