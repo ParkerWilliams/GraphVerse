@@ -19,6 +19,9 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
         max_file_size: Maximum file size in bytes (default 50MB)
         verbose: Whether to print progress
     """
+    # Convert numpy integers to Python integers
+    walks = [[int(node) for node in walk] for walk in walks]
+    
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
     walks_per_file = len(walks) // 10  # Start with rough estimate of 10 files
