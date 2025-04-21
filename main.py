@@ -35,6 +35,7 @@ def main(
     epochs,
     batch_size,
     learning_rate,
+    min_edge_density=0.4,
     verbose=False,
 ):
     # Define rule sets
@@ -63,7 +64,8 @@ def main(
         max_walk_length=max_walk_length,
         verbose=verbose,
         save_walks=True,
-        output_dir="walks"
+        output_dir="walks",
+        min_edge_density=min_edge_density
     )
 
     if verbose:
@@ -108,6 +110,7 @@ if __name__ == "__main__":
     epochs = 10
     batch_size = 32
     learning_rate = 0.001
+    min_edge_density = 0.4
     verbose = True
 
     model, G, vocab = main(
@@ -123,5 +126,6 @@ if __name__ == "__main__":
         epochs,
         batch_size,
         learning_rate,
+        min_edge_density,
         verbose=verbose,
     )

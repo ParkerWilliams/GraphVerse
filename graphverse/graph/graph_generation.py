@@ -50,13 +50,25 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
 def generate_random_graph(
     n, rules, num_walks=1000, min_walk_length=5, max_walk_length=20, 
     verbose=False, save_walks=False, output_dir="walks",
-    min_edge_density=0.1  # Add minimum edge density parameter
+    min_edge_density=0.4  # Add minimum edge density parameter
 ):
     if verbose:
         print("Generating random graph...")
 
     # Create graph with adjacency matrix
     G = Graph(n)
+    
+    def print_density_stats(stage):
+        if verbose:
+            density = calculate_edge_density(G, verbose=False)
+            edges = np.sum(G.adjacency > 0)
+            max_edges = n * (n - 1)
+            print(f"\n{stage}:")
+            print(f"  Edge density: {density:.3f}")
+            print(f"  Edges: {edges}/{max_edges}")
+
+    # Initial state
+    print_density_stats("Initial graph state")
 
     # Find the correct rule instances
     repeater_rule = next(rule for rule in rules if isinstance(rule, RepeaterRule))
@@ -75,7 +87,9 @@ def generate_random_graph(
             G.node_attributes[node]["rule"] = "repeater"
             G.node_attributes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
 
-    # First handle repeater nodes to ensure valid paths exist
+    # First ensure each rule type has valid paths
+    
+    # 1. Handle repeater nodes to ensure valid paths exist
     for node in tqdm(range(n), desc="Setting up repeater paths"):
         if G.node_attributes[node]["rule"] == "repeater":
             repetitions = G.node_attributes[node]["repetitions"]
@@ -99,9 +113,78 @@ def generate_random_graph(
                 G.add_edge(node, path_node)
                 # Add return edge to allow getting back to repeater
                 G.add_edge(path_node, node)
+    
+    print_density_stats("After setting up repeater paths")
 
-    # Now add edges for other rules
-    for node in tqdm(range(n), desc="Adding remaining edges"):
+    # 2. Handle ascender nodes to ensure valid ascending paths
+    for node in tqdm(range(n), desc="Setting up ascender paths"):
+        if G.node_attributes[node]["rule"] == "ascender":
+            # Ensure at least one valid ascending path of length 3-5
+            path_length = random.randint(3, 5)
+            
+            # Find valid nodes that are higher than current node
+            higher_nodes = [
+                v for v in range(n)
+                if v > node
+                and G.node_attributes[v]["rule"] != "repeater"  # Avoid repeaters as they have fixed paths
+            ]
+            
+            if len(higher_nodes) < path_length - 1:  # -1 because we start with current node
+                raise ValueError(f"Not enough higher nodes for ascender {node}")
+            
+            # Sort by value to ensure ascending order
+            higher_nodes.sort()
+            
+            # Select path_length-1 nodes that will form ascending path
+            path_nodes = []
+            last_node = node
+            for _ in range(path_length - 1):
+                valid_nodes = [v for v in higher_nodes if v > last_node]
+                if not valid_nodes:
+                    break
+                next_node = random.choice(valid_nodes)
+                path_nodes.append(next_node)
+                last_node = next_node
+                higher_nodes.remove(next_node)
+            
+            # Add edges to create the ascending path
+            current = node
+            for next_node in path_nodes:
+                G.add_edge(current, next_node)
+                current = next_node
+
+    print_density_stats("After setting up ascender paths")
+
+    # 3. Handle even nodes to ensure valid even-only paths
+    for node in tqdm(range(n), desc="Setting up even paths"):
+        if G.node_attributes[node]["rule"] == "even":
+            # Ensure at least one valid path through even numbers
+            path_length = random.randint(3, 5)
+            
+            # Find valid even nodes
+            even_nodes = [
+                v for v in range(n)
+                if v % 2 == 0
+                and v != node
+                and G.node_attributes[v]["rule"] != "repeater"  # Avoid repeaters
+            ]
+            
+            if len(even_nodes) < path_length - 1:
+                raise ValueError(f"Not enough even nodes for even node {node}")
+            
+            # Select path_length-1 even nodes
+            path_nodes = random.sample(even_nodes, k=path_length - 1)
+            
+            # Add edges to create the even path
+            current = node
+            for next_node in path_nodes:
+                G.add_edge(current, next_node)
+                current = next_node
+
+    print_density_stats("After setting up even paths")
+
+    # Now add additional edges for variety while respecting rules
+    for node in tqdm(range(n), desc="Adding additional edges"):
         rule = G.node_attributes[node]["rule"]
         
         if rule == "ascender":
@@ -116,6 +199,8 @@ def generate_random_graph(
                 num_edges = random.randint(1, min(len(candidates), 5))  # Limit max edges
                 for v in random.sample(candidates, num_edges):
                     G.add_edge(node, v)
+
+    print_density_stats("After adding additional rule-based edges")
 
     # Ensure minimum edge density is met
     current_density = calculate_edge_density(G, verbose=False)
@@ -179,6 +264,8 @@ def generate_random_graph(
             if final_density < min_edge_density:
                 print("Warning: Could not reach target density while respecting rules")
 
+    print_density_stats("After density enforcement")
+
     # Assign random edge weights (probabilities)
     for node in tqdm(range(n), desc="Assigning edge probabilities"):
         neighbors = G.get_neighbors(node)
@@ -190,7 +277,7 @@ def generate_random_graph(
 
     # Calculate and report edge density statistics
     if verbose:
-        print("\nEdge Density Statistics:")
+        print("\nFinal Edge Density Statistics:")
         # Overall edge density
         overall_density = calculate_edge_density(G, verbose=False)
         print(f"Overall edge density: {overall_density:.3f}")
