@@ -89,7 +89,17 @@ def main(
     if verbose:
         print(f"Training model")
     model = train_model(
-        training_data, vocab, epochs, batch_size, learning_rate, verbose=verbose
+        training_data=training_data, 
+        vocab=vocab, 
+        hidden_size=512,  # Ensure this matches the model's hidden size
+        num_layers=6,     # Ensure this matches the model's number of layers
+        num_heads=8,      # Ensure this matches the model's number of heads
+        dropout=0.1,      # Ensure this matches the model's dropout
+        batch_size=batch_size, 
+        num_epochs=epochs, 
+        learning_rate=learning_rate, 
+        device=device, 
+        verbose=verbose
     )
     if verbose:
         print(f"Model trained")

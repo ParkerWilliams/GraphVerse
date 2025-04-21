@@ -50,8 +50,8 @@ def prepare_training_data(
         verbose: Whether to print progress
         
     Returns:
-        training_data: List of (walk, label) pairs
-        vocab: Vocabulary mapping node indices to tokens
+        training_data: Tensor of shape (N, max_seq_len) containing input sequences
+        vocab: WalkVocabulary object mapping node indices to tokens
     """
     # Generate walks
     if verbose:
@@ -64,8 +64,6 @@ def prepare_training_data(
         print(f"Generating a walk starting from each node in the graph...")
     per_node_walks = []
     for node in range(graph.n):
-        if verbose:
-            print(f"Generating a walk starting from node {node}")
         walk = generate_valid_walk(
             graph, node, min_length, max_length, rules, verbose=verbose
         )
@@ -75,16 +73,21 @@ def prepare_training_data(
     # Combine all walks
     all_walks = walks + per_node_walks
     
-    # Create vocabulary
-    vocab = {i: str(i) for i in range(graph.n)}
+    # Create vocabulary using WalkVocabulary class
+    vocab = WalkVocabulary(all_walks)
     
     # Create training data
-    training_data = []
+    max_seq_len = max(len(walk) for walk in all_walks)
+    training_sequences = []
+    
     for walk in all_walks:
-        # For each position in walk, predict next node
-        for i in range(len(walk) - 1):
-            context = walk[:i+1]
-            target = walk[i+1]
-            training_data.append((context, target))
+        # Convert walk to indices, including START and END tokens
+        walk_indices = [vocab.token2idx["<START>"]] + [vocab.token2idx[str(node)] for node in walk] + [vocab.token2idx["<END>"]]
+        # Pad sequence to max_seq_len + 2 (+2 for START and END tokens)
+        padded = walk_indices + [vocab.token2idx["<PAD>"]] * (max_seq_len + 2 - len(walk_indices))
+        training_sequences.append(padded)
+    
+    # Convert to tensor
+    training_data = torch.tensor(training_sequences, dtype=torch.long)
     
     return training_data, vocab

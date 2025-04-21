@@ -8,44 +8,87 @@ from .model import WalkTransformer
 def train_model(
     training_data,
     vocab,
-    epochs,
-    batch_size,
-    learning_rate,
+    hidden_size=256,
+    num_layers=4,
+    num_heads=8,
+    dropout=0.1,
+    batch_size=32,
+    num_epochs=10,
+    learning_rate=0.001,
     device="cuda" if torch.cuda.is_available() else "cpu",
-    verbose=False,
+    verbose=False
 ):
+    """
+    Train a transformer model on the walk data.
+    
+    Args:
+        training_data: Tensor of shape (N, max_seq_len) containing input sequences
+        vocab: WalkVocabulary object mapping node indices to tokens
+        hidden_size: Size of transformer hidden layers
+        num_layers: Number of transformer layers
+        num_heads: Number of attention heads
+        dropout: Dropout probability
+        batch_size: Training batch size
+        num_epochs: Number of training epochs
+        learning_rate: Learning rate for optimizer
+        device: Device to train on
+        verbose: Whether to print progress
+        
+    Returns:
+        model: Trained WalkTransformer model
+    """
+    vocab_size = len(vocab)
+    max_seq_len = training_data.size(1)
+    
+    # Create model
     model = WalkTransformer(
-        len(vocab), d_model=512, nhead=8, num_layers=6, dim_feedforward=2048
+        vocab_size=vocab_size,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        dropout=dropout,
+        max_seq_len=max_seq_len
     ).to(device)
-    criterion = nn.CrossEntropyLoss(ignore_index=vocab.token2idx["<PAD>"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
+    
+    # Create data loader
     dataset = TensorDataset(training_data)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    for epoch in range(epochs):
-        model.train()
+    
+    # Loss and optimizer
+    criterion = nn.CrossEntropyLoss(ignore_index=vocab.token2idx["<PAD>"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    
+    # Training loop
+    model.train()
+    for epoch in range(num_epochs):
         total_loss = 0
-        for batch_idx, batch in enumerate(dataloader):
-            batch = batch[0].to(device)
+        for batch_idx, (batch,) in enumerate(dataloader):
+            batch = batch.to(device)
+            
+            # Create input and target sequences
+            input_seq = batch[:, :-1]  # All tokens except last
+            target_seq = batch[:, 1:]  # All tokens except first
+            
+            # Forward pass
+            logits = model(input_seq)
+            
+            # Reshape for loss calculation
+            B, T, V = logits.shape
+            loss = criterion(logits.view(-1, V), target_seq.view(-1))
+            
+            # Backward pass
             optimizer.zero_grad()
-            output = model(batch[:, :-1])
-            loss = criterion(
-                output.contiguous().view(-1, len(vocab)),
-                batch[:, 1:].contiguous().view(-1),
-            )
             loss.backward()
             optimizer.step()
+            
             total_loss += loss.item()
-
+            
             if verbose and (batch_idx + 1) % 10 == 0:
                 avg_loss = total_loss / (batch_idx + 1)
-                print(
-                    f"Epoch {epoch + 1}/{epochs}, Batch {batch_idx + 1}/{len(dataloader)}, Loss: {avg_loss:.4f}"
-                )
-
-        avg_loss = total_loss / len(dataloader)
+                print(f"Epoch {epoch+1}/{num_epochs}, Batch {batch_idx+1}, Avg Loss: {avg_loss:.4f}")
+        
         if verbose:
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
-
+            avg_epoch_loss = total_loss / len(dataloader)
+            print(f"Epoch {epoch+1}/{num_epochs} completed, Avg Loss: {avg_epoch_loss:.4f}")
+    
     return model

@@ -25,22 +25,37 @@ class PositionalEncoding(nn.Module):
 
 
 class WalkTransformer(nn.Module):
-    def __init__(self, vocab_size, d_model, nhead, num_layers, dim_feedforward):
+    def __init__(self, vocab_size, hidden_size, num_layers, num_heads, dropout, max_seq_len):
         super().__init__()
-        self.d_model = d_model
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward), num_layers
+        self.hidden_size = hidden_size
+        self.embedding = nn.Embedding(vocab_size, hidden_size)
+        self.pos_encoder = nn.Embedding(max_seq_len, hidden_size)  # Learnable positional encoding
+        
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_size,
+            nhead=num_heads,
+            dim_feedforward=4*hidden_size,
+            dropout=dropout,
+            batch_first=True
         )
-        self.fc_out = nn.Linear(d_model, vocab_size)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers)
+        self.fc_out = nn.Linear(hidden_size, vocab_size)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, src):
-        src = src.transpose(0, 1)  # (batch, seq) -> (seq, batch)
-        embedded = self.embedding(src) * math.sqrt(self.d_model)
-        embedded = self.pos_encoder(embedded)
-        output = self.transformer(embedded)
-        output = output.transpose(
-            0, 1
-        )  # (seq, batch, feature) -> (batch, seq, feature)
+        # Create position indices
+        positions = torch.arange(src.size(1), device=src.device).unsqueeze(0).expand(src.size(0), -1)
+        
+        # Get embeddings and positional encodings
+        embedded = self.embedding(src)
+        pos_encoding = self.pos_encoder(positions)
+        
+        # Combine embeddings and positional encodings
+        x = embedded + pos_encoding
+        x = self.dropout(x)
+        
+        # Pass through transformer
+        output = self.transformer(x)
+        
+        # Project to vocabulary size
         return self.fc_out(output)
