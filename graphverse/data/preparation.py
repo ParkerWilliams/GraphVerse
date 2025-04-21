@@ -40,47 +40,51 @@ def prepare_training_data(
 ):
     """
     Prepare training data for the model.
+    
+    Args:
+        graph: The graph to generate walks on
+        num_walks: Number of random walks to generate
+        min_length: Minimum walk length
+        max_length: Maximum walk length
+        rules: Set of rules to follow
+        verbose: Whether to print progress
+        
+    Returns:
+        training_data: List of (walk, label) pairs
+        vocab: Vocabulary mapping node indices to tokens
     """
-    if verbose:
-        print(f"Generating a walk starting from each node in the graph...")
-    per_node_walks = []
-    for node in graph.n:
-        if verbose:
-            print(f"Generating a walk starting from node {node}")
-        valid_walk = generate_valid_walk(graph, node, min_length, max_length, rules)
-        if valid_walk:
-            per_node_walks.append(valid_walk)
-        if verbose:
-            print()  # Print a new line after each iteration
-
     # Generate walks
     if verbose:
-        print(f"Generating {num_walks} walks...")
+        print(f"Generating {num_walks} random walks...")
     walks = generate_multiple_walks(
         graph, num_walks, min_length, max_length, rules, verbose=verbose
     )
-
-    walks = walks + per_node_walks
-
-    # Create vocabulary
-    vocab = WalkVocabulary(walks)
-
-    tensor_data = []
-    for walk in walks:
-        tensor_walk = (
-            [vocab.token2idx["<START>"]]
-            + [vocab.token2idx[str(node)] for node in walk]
-            + [vocab.token2idx["<END>"]]
-        )
-        tensor_data.append(torch.tensor(tensor_walk))
-
+    
     if verbose:
-        print(f"Number of walks: {len(walks)}")
-        print(f"Vocabulary size: {len(vocab)}")
-        print(
-            f"Tensor data shape: {torch.nn.utils.rnn.pad_sequence(tensor_data, batch_first=True, padding_value=vocab.token2idx['<PAD>']).shape}"
+        print(f"Generating a walk starting from each node in the graph...")
+    per_node_walks = []
+    for node in range(graph.n):
+        if verbose:
+            print(f"Generating a walk starting from node {node}")
+        walk = generate_valid_walk(
+            graph, node, min_length, max_length, rules, verbose=verbose
         )
-
-    return torch.nn.utils.rnn.pad_sequence(
-        tensor_data, batch_first=True, padding_value=vocab.token2idx["<PAD>"]
-    ), vocab
+        if walk:
+            per_node_walks.append(walk)
+    
+    # Combine all walks
+    all_walks = walks + per_node_walks
+    
+    # Create vocabulary
+    vocab = {i: str(i) for i in range(graph.n)}
+    
+    # Create training data
+    training_data = []
+    for walk in all_walks:
+        # For each position in walk, predict next node
+        for i in range(len(walk) - 1):
+            context = walk[:i+1]
+            target = walk[i+1]
+            training_data.append((context, target))
+    
+    return training_data, vocab
