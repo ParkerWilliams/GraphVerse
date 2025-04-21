@@ -28,6 +28,12 @@ def generate_valid_walk(
             print(f"Start vertex {start_vertex} out of bounds [0, {graph.n-1}]")
         return None
 
+    # Verify start vertex has outgoing edges
+    if len(graph.get_neighbors(start_vertex)) == 0:
+        if verbose:
+            print(f"Start vertex {start_vertex} has no valid outgoing edges")
+        return None
+
     target_length = random.randint(min_length, max_length)
     attempts = 0
     
@@ -48,12 +54,19 @@ def generate_valid_walk(
                 failure_points.append({
                     'node': current_node,
                     'type': graph.node_attributes[current_node]['rule'],
-                    'reason': 'no_neighbors'
+                    'reason': 'no_outgoing_edges'  # Updated reason to be more specific
                 })
                 break
             
             # Sample next node based on probabilities
             next_vertex = np.random.choice(neighbors, p=probs)
+            
+            # Double check the edge is positive (shouldn't be necessary but good practice)
+            if graph.adjacency[current_node, next_vertex] <= 0:
+                if verbose:
+                    print(f"Warning: Attempted to follow non-positive edge {current_node}->{next_vertex}")
+                continue
+                
             walk.append(next_vertex)
             
             # Check if the new walk segment violates any rules
@@ -69,7 +82,16 @@ def generate_valid_walk(
         
         # Check if we got a valid walk
         if len(walk) >= min_length and check_rule_compliance(graph, walk, rules, verbose):
-            return walk
+            # Verify all edges in walk are positive (sanity check)
+            valid_walk = True
+            for i in range(len(walk)-1):
+                if graph.adjacency[walk[i], walk[i+1]] <= 0:
+                    if verbose:
+                        print(f"Warning: Invalid walk generated with non-positive edge {walk[i]}->{walk[i+1]}")
+                    valid_walk = False
+                    break
+            if valid_walk:
+                return walk
             
         attempts += 1
     

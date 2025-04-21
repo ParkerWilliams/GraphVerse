@@ -44,7 +44,7 @@ def prepare_training_data(
     if verbose:
         print(f"Generating a walk starting from each node in the graph...")
     per_node_walks = []
-    for node in graph.nodes:
+    for node in graph.n:
         if verbose:
             print(f"Generating a walk starting from node {node}")
         valid_walk = generate_valid_walk(graph, node, min_length, max_length, rules)

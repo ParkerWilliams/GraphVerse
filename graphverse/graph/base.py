@@ -12,6 +12,7 @@ class Graph:
         
     def add_edge(self, u, v, weight=1.0):
         self.adjacency[u, v] = weight
+        self.adjacency[v, u] = -1*weight
         
     def get_neighbors(self, node):
         return np.where(self.adjacency[node] > 0)[0]
@@ -21,7 +22,8 @@ class Graph:
         
     def get_laplacian(self):
         """Compute the graph Laplacian matrix"""
-        D = np.diag(np.sum(self.adjacency, axis=1))
+        # Only consider positive edges for out-degree
+        D = np.diag(np.sum(self.adjacency > 0, axis=1))
         return D - self.adjacency
         
     def get_spectral_embedding(self, k=2):
@@ -43,11 +45,11 @@ class Graph:
         return np.abs(eigenvalues[1]) > 1e-10  # Second smallest eigenvalue > 0
         
     def get_edge_probabilities(self, node):
-        """Get transition probabilities for a node"""
-        neighbors = self.get_neighbors(node)
+        """Get transition probabilities for a node, only considering positive edges"""
+        neighbors = self.get_neighbors(node)  # This already only gets positive edges
         if len(neighbors) == 0:
             return np.array([]), np.array([])
-        weights = self.adjacency[node, neighbors]
+        weights = self.adjacency[node, neighbors]  # These weights are guaranteed positive
         probs = weights / np.sum(weights)
         return neighbors, probs
 
