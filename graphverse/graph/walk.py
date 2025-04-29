@@ -27,7 +27,7 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
         if verbose:
             print(f"Current walk: {walk}, Target length: {target_length}")
         valid_neighbors = [
-            neighbor for neighbor in graph.nodes()
+            neighbor for neighbor in graph.n()
             if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
         ]
 
@@ -75,7 +75,7 @@ def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, ver
     while len(walks) < num_walks:
         if verbose:
             print(f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}")
-        start_vertex = random.choice(list(graph.nodes()))
+        start_vertex = random.choice(list(graph.n()))
         walk = generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts, verbose)
         
         if walk:

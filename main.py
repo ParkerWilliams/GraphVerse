@@ -5,6 +5,7 @@ import math
 import random
 import os
 import pickle
+import numpy as np
 
 from graphverse.graph.graph_generation import generate_random_graph, calculate_edge_density
 from graphverse.graph.rules import AscenderRule, EvenRule, RepeaterRule
@@ -62,10 +63,9 @@ def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater
 
     if verbose:
         print(f'Graph created')
-        print(f"Number of nodes: {G.number_of_nodes()}")
-        print(f"Number of edges: {G.number_of_edges()}")
-        print(f"Is strongly connected: {nx.is_strongly_connected(G)}")
-        print(f"Is weakly connected: {nx.is_weakly_connected(G)}")
+        print(f"Number of nodes: {G.n}")
+        print(f"Number of edges: {int(np.sum(G.adjacency > 0))}")
+        print(f"Is connected (spectral): {G.is_connected()}")
         print(f'Now preparing training data')
 
     # Prepare training data

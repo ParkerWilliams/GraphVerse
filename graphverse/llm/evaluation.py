@@ -34,7 +34,7 @@ def evaluate_model(
             print(f"Evaluating sample {sample_idx + 1}/{num_walks}")
 
         start_walk = generate_valid_walk(
-            graph, random.choice(list(graph.nodes)), min_start_length, max_start_length, rules
+            graph, random.choice(list(graph.n)), min_start_length, max_start_length, rules
         )
 
         input_tensor = torch.tensor(
@@ -47,7 +47,7 @@ def evaluate_model(
         counter = 0
         kl_series = []  # KL values for this walk
 
-        while current_vertex in graph.nodes:
+        while current_vertex in graph.n:
             logits = model(input_tensor)
             next_vertex_idx = torch.argmax(logits[0, -1]).item()
             next_vertex = vocab.idx2token[next_vertex_idx]
