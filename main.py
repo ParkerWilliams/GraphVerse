@@ -70,7 +70,9 @@ def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater
 
     # Prepare training data
     walks = generate_multiple_walks(G, num_walks, min_walk_length, max_walk_length, rule_instances, verbose=verbose)
-    training_data, vocab = prepare_training_data(G, walks, verbose=verbose)
+    training_data, vocab = prepare_training_data(
+    G, num_walks, min_walk_length, max_walk_length, rule_instances, verbose=verbose
+)
     if verbose:
         print(f'Training data prepared')
 
