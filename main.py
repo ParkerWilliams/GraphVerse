@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import torch
 import pandas as pd
+import numpy as np
 import math
 import random
 import os
 import pickle
-import numpy as np
 
 from graphverse.graph.graph_generation import generate_random_graph, calculate_edge_density
 from graphverse.graph.rules import AscenderRule, EvenRule, RepeaterRule
@@ -79,7 +79,19 @@ def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater
     # Train model
     if verbose:
         print(f'Training model')
-    model = train_model(training_data, vocab, epochs, batch_size, learning_rate, verbose=verbose)
+    hidden_size = 256
+    num_heads = 8
+    model = train_model(
+        training_data, vocab,
+        hidden_size=hidden_size,
+        num_layers=4,
+        num_heads=num_heads,
+        dropout=0.1,
+        batch_size=batch_size,
+        num_epochs=epochs,
+        learning_rate=learning_rate,
+        verbose=verbose
+    )
     if verbose:
         print(f'Model trained')
 

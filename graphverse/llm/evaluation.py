@@ -34,7 +34,7 @@ def evaluate_model(
             print(f"Evaluating sample {sample_idx + 1}/{num_walks}")
 
         start_walk = generate_valid_walk(
-            graph, random.choice(list(graph.n)), min_start_length, max_start_length, rules
+            graph, random.choice(range(graph.n)), min_start_length, max_start_length, rules
         )
 
         input_tensor = torch.tensor(
