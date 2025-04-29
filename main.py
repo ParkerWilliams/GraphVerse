@@ -42,20 +42,23 @@ def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater
     # Define rule sets
     if verbose:
         print('Selecting vertices with rules')
-    ascenders, descenders, evens, odds, repeaters = define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps)
+    ascenders, evens, repeaters = define_all_rules(
+        n, num_ascenders=10, num_evens=10, num_repeaters=num_repeaters, 
+        repeater_min_steps=repeater_min_steps, repeater_max_steps=repeater_max_steps
+    )
 
     # Create rule instances
     ascender_rule = AscenderRule(ascenders)
-    descender_rule = DescenderRule(descenders)
     even_rule = EvenRule(evens)
-    odd_rule = OddRule(odds)
     repeater_rule = RepeaterRule(repeaters)
-    rule_instances = [ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule]
+    rule_instances = [ascender_rule, even_rule, repeater_rule]
 
     # Generate graph
     if verbose:
         print('Generating graph')
-    G = generate_random_graph(n, (ascenders, evens, repeaters), num_walks, min_walk_length, max_walk_length, verbose=verbose)
+    G = generate_random_graph(
+        n, rule_instances, num_walks, min_walk_length, max_walk_length, verbose=verbose
+    )
 
     if verbose:
         print(f'Graph created')
