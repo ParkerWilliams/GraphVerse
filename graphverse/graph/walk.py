@@ -27,7 +27,7 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
         if verbose:
             print(f"Current walk: {walk}, Target length: {target_length}")
         valid_neighbors = [
-            neighbor for neighbor in graph.n()
+            neighbor for neighbor in range(graph.n)
             if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
         ]
 
