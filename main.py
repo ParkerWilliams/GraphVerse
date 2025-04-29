@@ -18,6 +18,7 @@ from graphverse.utils.experiment_manager import (
     create_experiment_folder, save_config,
     save_error_summary, save_kl_divergence_series
 )
+from graphverse.llm.evaluation_vis import plot_error_summary, plot_kl_divergence_timeseries, plot_aggregate_kl
 
 def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater_min_steps, repeater_max_steps, epochs, batch_size, learning_rate, verbose=False, context_window_size=None, repeater_distance=None, seed=None):
     # --- New: Create experiment folder and save config ---
@@ -114,3 +115,16 @@ if __name__ == "__main__":
     verbose = True
 
     model, G, vocab, rule_instances = main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater_min_steps, repeater_max_steps, epochs, batch_size, learning_rate, verbose=verbose)
+
+    # Paths to your experiment outputs
+    error_summary_path = "experiments/run_YYYYMMDD_HHMMSS/evaluation/error_summary.json"
+    kl_csv_path = "experiments/run_YYYYMMDD_HHMMSS/evaluation/kl_divergence_timeseries.csv"
+
+    # Plot error summary
+    plot_error_summary(error_summary_path, output_path="experiments/run_YYYYMMDD_HHMMSS/evaluation/error_rates.png")
+
+    # Plot KL divergence for a specific walk
+    plot_kl_divergence_timeseries(kl_csv_path, walk_idx=0, output_path="experiments/run_YYYYMMDD_HHMMSS/evaluation/kl_walk0.png")
+
+    # Plot aggregate KL divergence
+    plot_aggregate_kl(kl_csv_path, output_path="experiments/run_YYYYMMDD_HHMMSS/evaluation/kl_aggregate.png")
