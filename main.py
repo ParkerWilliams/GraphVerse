@@ -55,7 +55,7 @@ def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater
     # Generate graph
     if verbose:
         print('Generating graph')
-    G = generate_random_graph(n, (ascenders, descenders, evens, odds, repeaters), num_walks, min_walk_length, max_walk_length, verbose=verbose)
+    G = generate_random_graph(n, (ascenders, evens, repeaters), num_walks, min_walk_length, max_walk_length, verbose=verbose)
 
     if verbose:
         print(f'Graph created')
