@@ -94,3 +94,7 @@ class Graph:
                 graph.node_attributes = json.load(f)
                 
         return graph 
+
+    def has_edge(self, u, v):
+        """Return True if there is a positive edge from u to v."""
+        return self.adjacency[u, v] > 0 
