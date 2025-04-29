@@ -18,19 +18,19 @@ def evaluate_model(
     model.eval()
 
     evaluation_results = []
+    repeater_errors = 0
+    ascender_errors = 0
+    even_errors = 0
+    broken_graph_errors = 0
+    total_steps = 0
 
     for sample_idx in range(num_walks):
         if verbose and (sample_idx + 1) % 10 == 0:
             print(f"Evaluating sample {sample_idx + 1}/{num_walks}")
 
-        # start_length = random.randint(min_start_length, max_start_length)
         start_walk = generate_valid_walk(
             graph, random.choice(list(graph.nodes)), min_start_length, max_start_length, rules
         )
-
-        print(start_walk)
-        # ["<START>", 0, 10, 8, ]
-        # [-2, 0, 10, 8, ]
 
         input_tensor = torch.tensor(
             [vocab.token2idx[str(node)] for node in start_walk], dtype=torch.long
@@ -44,45 +44,64 @@ def evaluate_model(
             logits = model(input_tensor)
             next_vertex_idx = torch.argmax(logits[0, -1]).item()
             next_vertex = vocab.idx2token[next_vertex_idx]
-            print(counter, current_vertex, next_vertex, next_vertex_idx, logits)
 
             if next_vertex == "<END>":
                 break
 
-            next_vertex = int(next_vertex)
-            generated_walk.append(next_vertex)
+            try:
+                next_vertex_int = int(next_vertex)
+            except ValueError:
+                break  # Not a valid node
+
+            # --- Broken graph connection check ---
+            if not graph.has_edge(current_vertex, next_vertex_int):
+                broken_graph_errors += 1
+                break
+
+            generated_walk.append(next_vertex_int)
             input_tensor = torch.cat(
                 (input_tensor, torch.tensor([[next_vertex_idx]], dtype=torch.long)),
                 dim=1,
             )
 
-            current_vertex = next_vertex
+            current_vertex = next_vertex_int
             counter += 1
+            total_steps += 1
 
-        rule_violations = []
-        for i, rule in enumerate(rules, start=1):
-            if not rule.is_satisfied_by(graph, generated_walk):
-                violation_info = {
-                    "rule_type": type(rule).__name__,
-                    "walk_length": len(generated_walk),
-                    "violation_position": rule.get_violation_position(
-                        graph, generated_walk
-                    ),
-                }
-                rule_violations.append(violation_info)
+        # --- Rule violation tracking ---
+        for rule in rules:
+            if hasattr(rule, "is_repeater_rule") and rule.is_repeater_rule:
+                if not rule.is_satisfied_by(graph, generated_walk):
+                    repeater_errors += 1
+            elif hasattr(rule, "is_ascender_rule") and rule.is_ascender_rule:
+                if not rule.is_satisfied_by(graph, generated_walk):
+                    ascender_errors += 1
+            elif hasattr(rule, "is_even_rule") and rule.is_even_rule:
+                if not rule.is_satisfied_by(graph, generated_walk):
+                    even_errors += 1
 
         evaluation_results.append(
             {
                 "start_walk": start_walk,
                 "generated_walk": generated_walk,
-                "rule_violations": rule_violations,
+                # Optionally, add more details here
             }
         )
 
+    # --- Summarize error rates ---
+    error_summary = {
+        "repeater_error_rate": repeater_errors / num_walks,
+        "ascender_error_rate": ascender_errors / num_walks,
+        "even_error_rate": even_errors / num_walks,
+        "broken_graph_error_rate": broken_graph_errors / num_walks,
+        "total_steps": total_steps,
+    }
+
     if verbose:
         print("Evaluation completed.")
+        print("Error summary:", error_summary)
 
-    return evaluation_results
+    return evaluation_results, error_summary
 
 
 def count_rule_violations(walk, graph, rules):

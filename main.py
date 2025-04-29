@@ -1,144 +1,116 @@
+import networkx as nx
+import matplotlib.pyplot as plt
+import torch
+import pandas as pd
 import math
 import random
+import os
+import pickle
 
-import pandas as pd
-import torch
-import numpy as np
-
+from graphverse.graph.graph_generation import generate_random_graph, calculate_edge_density
+from graphverse.graph.rules import AscenderRule, DescenderRule, EvenRule, OddRule, RepeaterRule
+from graphverse.graph.rules import define_all_rules
 from graphverse.data.preparation import prepare_training_data
-from graphverse.graph.graph_generation import (
-    calculate_edge_density,
-    generate_random_graph,
-)
-from graphverse.graph.rules import (
-    AscenderRule,
-    EvenRule,
-    RepeaterRule,
-    define_all_rules,
-)
-from graphverse.graph.walk import generate_multiple_walks
-from graphverse.llm.evaluation import evaluate_model
 from graphverse.llm.training import train_model
-from graphverse.graph.base import Graph
+from graphverse.llm.evaluation import evaluate_model
+from graphverse.graph.walk import generate_multiple_walks
+from graphverse.utils.experiment_manager import (
+    create_experiment_folder, save_config,
+    save_error_summary, save_kl_divergence_series
+)
 
+def main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater_min_steps, repeater_max_steps, epochs, batch_size, learning_rate, verbose=False, context_window_size=None, repeater_distance=None, seed=None):
+    # --- New: Create experiment folder and save config ---
+    experiment_folder = create_experiment_folder()
+    config = {
+        "n": n,
+        "num_walks": num_walks,
+        "min_walk_length": min_walk_length,
+        "max_walk_length": max_walk_length,
+        "num_repeaters": num_repeaters,
+        "repeater_min_steps": repeater_min_steps,
+        "repeater_max_steps": repeater_max_steps,
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "context_window_size": context_window_size,
+        "repeater_distance": repeater_distance,
+        "seed": seed,
+    }
+    save_config(config, experiment_folder)
 
-def main(
-    n,
-    num_walks,
-    min_walk_length,
-    max_walk_length,
-    num_ascenders,
-    num_evens,
-    num_repeaters,
-    repeater_min_steps,
-    repeater_max_steps,
-    epochs,
-    batch_size,
-    learning_rate,
-    min_edge_density=0.4,
-    verbose=False,
-):
     # Define rule sets
     if verbose:
-        print("Selecting vertices with rules")
-    ascenders, evens, repeaters = define_all_rules(
-        n, num_ascenders, num_evens, num_repeaters, repeater_min_steps, repeater_max_steps
-    )
+        print('Selecting vertices with rules')
+    ascenders, descenders, evens, odds, repeaters = define_all_rules(n, num_repeaters, repeater_min_steps, repeater_max_steps)
 
-    # Create rule objects
+    # Create rule instances
     ascender_rule = AscenderRule(ascenders)
+    descender_rule = DescenderRule(descenders)
     even_rule = EvenRule(evens)
+    odd_rule = OddRule(odds)
     repeater_rule = RepeaterRule(repeaters)
-
-    # Set of rules
-    rules = {ascender_rule, even_rule, repeater_rule}
+    rule_instances = [ascender_rule, descender_rule, even_rule, odd_rule, repeater_rule]
 
     # Generate graph
     if verbose:
-        print("Generating graph")
-    G = generate_random_graph(
-        n=n,
-        rules=rules,
-        num_walks=num_walks,
-        min_walk_length=min_walk_length,
-        max_walk_length=max_walk_length,
-        verbose=verbose,
-        save_walks=True,
-        output_dir="walks",
-        min_edge_density=min_edge_density
-    )
+        print('Generating graph')
+    G = generate_random_graph(n, (ascenders, descenders, evens, odds, repeaters), num_walks, min_walk_length, max_walk_length, verbose=verbose)
 
     if verbose:
-        print(f"Graph created")
-        print(f"Number of nodes: {G.n}")
-        print(f"Number of edges: {np.sum(G.adjacency > 0)}")
-        print(f"Is connected: {G.is_connected()}")
-        print(f"Now preparing training data")
+        print(f'Graph created')
+        print(f"Number of nodes: {G.number_of_nodes()}")
+        print(f"Number of edges: {G.number_of_edges()}")
+        print(f"Is strongly connected: {nx.is_strongly_connected(G)}")
+        print(f"Is weakly connected: {nx.is_weakly_connected(G)}")
+        print(f'Now preparing training data')
 
     # Prepare training data
-    walks = generate_multiple_walks(
-        G, num_walks, min_walk_length, max_walk_length, rules, verbose=verbose
-    )
-    training_data, vocab = prepare_training_data(
-        G, num_walks, min_walk_length, max_walk_length, rules, verbose=verbose
-    )
+    walks = generate_multiple_walks(G, num_walks, min_walk_length, max_walk_length, rule_instances, verbose=verbose)
+    training_data, vocab = prepare_training_data(G, walks, verbose=verbose)
     if verbose:
-        print(f"Training data prepared")
-
-    # Define device
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f'Training data prepared')
 
     # Train model
     if verbose:
-        print(f"Training model")
-    model = train_model(
-        training_data=training_data, 
-        vocab=vocab, 
-        hidden_size=512,  # Ensure this matches the model's hidden size and is divisible by num_heads
-        num_layers=6,     # Ensure this matches the model's number of layers
-        num_heads=8,      # Ensure this matches the model's number of heads
-        dropout=0.1,      # Ensure this matches the model's dropout
-        batch_size=batch_size, 
-        num_epochs=epochs, 
-        learning_rate=learning_rate, 
-        device=device, 
-        verbose=verbose
-    )
+        print(f'Training model')
+    model = train_model(training_data, vocab, epochs, batch_size, learning_rate, verbose=verbose)
     if verbose:
-        print(f"Model trained")
+        print(f'Model trained')
 
-    return model, G, vocab
+    # Save model
+    torch.save(model.state_dict(), os.path.join(experiment_folder, "model.pth"))
+    # Save dataset
+    with open(os.path.join(experiment_folder, "data", "training_data.pt"), "wb") as f:
+        torch.save(training_data, f)
+    # Save graph
+    with open(os.path.join(experiment_folder, "data", "graph.pkl"), "wb") as f:
+        pickle.dump(G, f)
+    # Save vocabulary
+    with open(os.path.join(experiment_folder, "data", "vocab.pkl"), "wb") as f:
+        pickle.dump(vocab, f)
 
+    # --- New: Evaluate model and save metrics ---
+    evaluation_results, error_summary, kl_divergence_series = evaluate_model(
+        model, G, vocab, num_walks, min_walk_length, max_walk_length, rule_instances, verbose=verbose
+    )
+    save_error_summary(error_summary, experiment_folder)
+    save_kl_divergence_series(kl_divergence_series, experiment_folder)
+    # --- End new code ---
+
+    return model, G, vocab, rule_instances
 
 if __name__ == "__main__":
     n = 1000
     num_walks = 10000
     min_walk_length = 5
     max_walk_length = 20
-    num_ascenders = 10
-    num_evens = 10
-    num_repeaters = 10
+    num_repeaters = 3
     repeater_min_steps = 3
     repeater_max_steps = 10
     epochs = 10
     batch_size = 32
     learning_rate = 0.001
-    min_edge_density = 0.4
     verbose = True
 
-    model, G, vocab = main(
-        n,
-        num_walks,
-        min_walk_length,
-        max_walk_length,
-        num_ascenders,
-        num_evens,
-        num_repeaters,
-        repeater_min_steps,
-        repeater_max_steps,
-        epochs,
-        batch_size,
-        learning_rate,
-        min_edge_density,
-        verbose=verbose,
-    )
+    model, G, vocab, rule_instances = main(n, num_walks, min_walk_length, max_walk_length, num_repeaters, repeater_min_steps, repeater_max_steps, epochs, batch_size, learning_rate, verbose=verbose)
