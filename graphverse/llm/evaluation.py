@@ -47,7 +47,7 @@ def evaluate_model(
         counter = 0
         kl_series = []  # KL values for this walk
 
-        while current_vertex in graph.n:
+        while current_vertex in range(graph.n):
             logits = model(input_tensor)
             next_vertex_idx = torch.argmax(logits[0, -1]).item()
             next_vertex = vocab.idx2token[next_vertex_idx]
