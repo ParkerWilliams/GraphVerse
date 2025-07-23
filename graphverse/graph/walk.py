@@ -1,13 +1,13 @@
 import random
 from .rules import Rule
 
-def check_rule_compliance(graph, walk, rules, verbose=False):
+def check_rule_compliance(walk, graph, rules, verbose=False):
     if verbose:
         print(f"Checking rule compliance for walk: {walk}")
     for rule in rules:
         if verbose:
             print(f"Checking rule: {rule.__class__.__name__}")
-        result = rule.apply(graph, walk)
+        result = rule.apply(walk, graph)
         if not result:
             if verbose:
                 print(f"Rule {rule.__class__.__name__} violated for walk: {walk}")
@@ -28,7 +28,7 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
             print(f"Current walk: {walk}, Target length: {target_length}")
         valid_neighbors = [
             neighbor for neighbor in range(graph.n)
-            if check_rule_compliance(graph, walk + [neighbor], rules, verbose)
+            if check_rule_compliance(walk + [neighbor], graph, rules, verbose)
         ]
 
         if not valid_neighbors:

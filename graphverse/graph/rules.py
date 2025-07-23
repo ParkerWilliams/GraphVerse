@@ -60,7 +60,7 @@ def define_repeaters(
 
 class Rule(ABC):
     @abstractmethod
-    def apply(self, walk, graph):
+    def is_satisfied_by(self, walk, graph):
         """
         Check if the rule is satisfied for the given walk.
 
@@ -70,18 +70,31 @@ class Rule(ABC):
         """
         pass
 
+    @abstractmethod
+    def apply(self, walk, graph):
+        """
+        Alias for is_satisfied_by for backward compatibility.
+        """
+        return self.is_satisfied_by(walk, graph)
+
 
 class AscenderRule(Rule):
     def __init__(self, ascenders):
         self.member_nodes = ascenders
+        self.is_ascender_rule = True
+        self.is_repeater_rule = False
+        self.is_even_rule = False
 
-    def apply(self, graph, walk):
+    def is_satisfied_by(self, walk, graph):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
             if v in self.member_nodes:
                 if any(walk[j] < v for j in range(i + 1, len(walk))):
                     return False
         return True
+
+    def apply(self, walk, graph):
+        return self.is_satisfied_by(walk, graph)
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
@@ -93,14 +106,20 @@ class AscenderRule(Rule):
 class EvenRule(Rule):
     def __init__(self, evens):
         self.member_nodes = evens
+        self.is_even_rule = True
+        self.is_ascender_rule = False
+        self.is_repeater_rule = False
 
-    def apply(self, graph, walk):
+    def is_satisfied_by(self, walk, graph):
         walk = [int(item) for item in walk]
         for i, v in enumerate(walk):
             if v in self.member_nodes:
                 if any(walk[j] % 2 != 0 for j in range(i + 1, len(walk))):
                     return False
         return True
+
+    def apply(self, walk, graph):
+        return self.is_satisfied_by(walk, graph)
 
     def get_violation_position(self, graph, walk):
         for i in range(len(walk) - 1):
@@ -112,8 +131,11 @@ class RepeaterRule(Rule):
     def __init__(self, repeaters):
         self.member_nodes = set(repeaters.keys())
         self.members_nodes_dict = repeaters
+        self.is_repeater_rule = True
+        self.is_ascender_rule = False
+        self.is_even_rule = False
 
-    def apply(self, graph, walk):
+    def is_satisfied_by(self, walk, graph):
         walk = [int(item) for item in walk]
         for v, k in self.members_nodes_dict.items():
             if v in walk:
@@ -122,6 +144,9 @@ class RepeaterRule(Rule):
                     if indices[i + 1] - indices[i] != k:
                         return False
         return True
+
+    def apply(self, walk, graph):
+        return self.is_satisfied_by(walk, graph)
 
     def get_violation_position(self, walk):
         for v, k in self.members_nodes_dict.items():

@@ -85,13 +85,13 @@ def evaluate_model(
         # --- Rule violation tracking ---
         for rule in rules:
             if hasattr(rule, "is_repeater_rule") and rule.is_repeater_rule:
-                if not rule.is_satisfied_by(graph, generated_walk):
+                if not rule.is_satisfied_by(generated_walk, graph):
                     repeater_errors += 1
             elif hasattr(rule, "is_ascender_rule") and rule.is_ascender_rule:
-                if not rule.is_satisfied_by(graph, generated_walk):
+                if not rule.is_satisfied_by(generated_walk, graph):
                     ascender_errors += 1
             elif hasattr(rule, "is_even_rule") and rule.is_even_rule:
-                if not rule.is_satisfied_by(graph, generated_walk):
+                if not rule.is_satisfied_by(generated_walk, graph):
                     even_errors += 1
 
         # --- New: Store KL series for this walk ---
