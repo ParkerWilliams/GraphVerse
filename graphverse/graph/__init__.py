@@ -4,5 +4,6 @@ from .rules import (
     EvenRule,
     RepeaterRule,
     define_all_rules,
+    define_all_rules_by_percentage,
 )
 from .walk import generate_multiple_walks, generate_valid_walk

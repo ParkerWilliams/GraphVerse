@@ -53,10 +53,11 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
 def generate_random_graph(
     n, rules, num_walks=1000, min_walk_length=5, max_walk_length=20, 
     verbose=False, save_walks=False, output_dir="walks",
-    min_edge_density=0.4  # Add minimum edge density parameter
+    min_edge_density=0.4, edge_concentration=0.8  # Add edge weight parameters
 ):
     if verbose:
-        print("Generating random graph...")
+        print("\n  Starting graph generation...")
+        print(f"  Target: {n} nodes with minimum edge density of {min_edge_density}")
 
     # Create graph with adjacency matrix
     G = Graph(n)
@@ -79,7 +80,14 @@ def generate_random_graph(
     even_rule = next(rule for rule in rules if isinstance(rule, EvenRule))
     
     # Assign rules to nodes
-    for node in tqdm(range(n), desc="Assigning rules to nodes"):
+    if verbose:
+        print(f"\n  Assigning rules to nodes:")
+        print(f"    Ascender nodes: {len(ascender_rule.member_nodes)}")
+        print(f"    Even rule nodes: {len(even_rule.member_nodes)}")
+        print(f"    Repeater nodes: {len(repeater_rule.member_nodes)}")
+    
+    iterator = tqdm(range(n), desc="Assigning rules to nodes") if verbose else range(n)
+    for node in iterator:
         G.node_attributes[node] = {"rule": "none"}
         
         if node in ascender_rule.member_nodes:
@@ -91,9 +99,12 @@ def generate_random_graph(
             G.node_attributes[node]["repetitions"] = repeater_rule.members_nodes_dict[node]
 
     # First ensure each rule type has valid paths
+    if verbose:
+        print("\n  Setting up rule-specific paths...")
     
     # 1. Handle repeater nodes to ensure valid paths exist
-    for node in tqdm(range(n), desc="Setting up repeater paths"):
+    repeater_iterator = tqdm(range(n), desc="Setting up repeater paths") if verbose else range(n)
+    for node in repeater_iterator:
         if G.node_attributes[node]["rule"] == "repeater":
             repetitions = G.node_attributes[node]["repetitions"]
             
@@ -120,7 +131,8 @@ def generate_random_graph(
     print_density_stats("After setting up repeater paths")
 
     # 2. Handle ascender nodes to ensure valid ascending paths
-    for node in tqdm(range(n), desc="Setting up ascender paths"):
+    ascender_iterator = tqdm(range(n), desc="Setting up ascender paths") if verbose else range(n)
+    for node in ascender_iterator:
         if G.node_attributes[node]["rule"] == "ascender":
             # Ensure at least one valid ascending path of length 3-5
             path_length = random.randint(3, 5)
@@ -159,7 +171,8 @@ def generate_random_graph(
     print_density_stats("After setting up ascender paths")
 
     # 3. Handle even nodes to ensure valid even-only paths
-    for node in tqdm(range(n), desc="Setting up even paths"):
+    even_iterator = tqdm(range(n), desc="Setting up even paths") if verbose else range(n)
+    for node in even_iterator:
         if G.node_attributes[node]["rule"] == "even":
             # Ensure at least one valid path through even numbers
             path_length = random.randint(3, 5)
@@ -187,7 +200,10 @@ def generate_random_graph(
     print_density_stats("After setting up even paths")
 
     # Now add additional edges for variety while respecting rules
-    for node in tqdm(range(n), desc="Adding additional edges"):
+    if verbose:
+        print("\n  Adding additional edges for graph connectivity...")
+    edge_iterator = tqdm(range(n), desc="Adding additional edges") if verbose else range(n)
+    for node in edge_iterator:
         rule = G.node_attributes[node]["rule"]
         
         if rule == "ascender":
@@ -278,12 +294,13 @@ def generate_random_graph(
 
     print_density_stats("After ensuring each node has an outgoing edge")
 
-    # Assign random edge weights (probabilities)
+    # Assign structured edge weights using Dirichlet distribution
+    # edge_concentration < 1.0 creates slight non-uniformity, = 1.0 is uniform
     for node in tqdm(range(n), desc="Assigning edge probabilities"):
         neighbors = G.get_neighbors(node)
         if len(neighbors) > 0:
-            weights = np.random.random(len(neighbors))
-            weights = weights / np.sum(weights)
+            # Use Dirichlet distribution for slightly non-uniform but realistic weights
+            weights = np.random.dirichlet([edge_concentration] * len(neighbors))
             for neighbor, weight in zip(neighbors, weights):
                 G.adjacency[node, neighbor] = weight
 

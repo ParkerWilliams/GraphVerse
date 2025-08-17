@@ -123,7 +123,7 @@ class GraphVisualizer:
             self.node_colors = ['skyblue'] * self.graph.n
     
     def draw(self, layout='spring', figsize=(10, 8), node_size=300, 
-             edge_width=1.0, node_labels=True, title="Graph Visualization"):
+             edge_width=1.0, node_labels=True, title="Graph Visualization", show_legend=True):
         """
         Draw the graph with specified layout.
         
@@ -134,6 +134,7 @@ class GraphVisualizer:
             edge_width: Width of edges
             node_labels: Whether to show node labels
             title: Plot title
+            show_legend: Whether to show legend for nodes
         """
         
         # Compute layout
@@ -169,7 +170,10 @@ class GraphVisualizer:
                                            colors='gray', alpha=0.6)
             ax.add_collection(line_collection)
         
-        # Draw nodes
+        # Draw nodes and collect legend info
+        node_handles = []
+        node_labels_list = []
+        
         for i in range(self.graph.n):
             x, y = positions[i]
             color = self.node_colors[i] if isinstance(self.node_colors[i], str) else 'skyblue'
@@ -177,10 +181,11 @@ class GraphVisualizer:
                           facecolor=color, edgecolor='black', linewidth=1)
             ax.add_patch(circle)
             
-            # Add node labels
-            if node_labels:
-                ax.text(x, y, str(i), ha='center', va='center', 
-                       fontsize=8, fontweight='bold')
+            # Collect for legend instead of adding text
+            if node_labels and show_legend:
+                node_handles.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                             markerfacecolor=color, markersize=8))
+                node_labels_list.append(f'Node {i}')
         
         # Set plot properties
         ax.set_xlim(positions[:, 0].min() - 0.2, positions[:, 0].max() + 0.2)
@@ -188,6 +193,18 @@ class GraphVisualizer:
         ax.set_aspect('equal')
         ax.set_title(title, fontsize=14, fontweight='bold')
         ax.axis('off')
+        
+        # Add legend if requested and there are labels
+        if show_legend and node_labels and node_handles:
+            # Limit legend entries if too many nodes
+            if len(node_handles) > 10:
+                ax.legend(node_handles[:10], node_labels_list[:10], 
+                         loc='center left', bbox_to_anchor=(1, 0.5),
+                         title=f'Nodes (showing 10/{self.graph.n})')
+            else:
+                ax.legend(node_handles, node_labels_list, 
+                         loc='center left', bbox_to_anchor=(1, 0.5),
+                         title='Nodes')
         
         plt.tight_layout()
         return fig, ax
@@ -204,7 +221,7 @@ class GraphVisualizer:
             highlight_color: Color for walk edges
             title: Plot title
         """
-        fig, ax = self.draw(layout=layout, figsize=figsize, title=title)
+        fig, ax = self.draw(layout=layout, figsize=figsize, title=title, show_legend=False)
         
         # Highlight walk edges
         if len(walk) > 1:
@@ -221,6 +238,8 @@ class GraphVisualizer:
                 ax.add_collection(walk_collection)
         
         # Highlight walk nodes
+        walk_handles = []
+        walk_labels = []
         for i, node in enumerate(walk):
             x, y = self.node_positions[node]
             circle = Circle((x, y), radius=400/10000, 
@@ -228,9 +247,24 @@ class GraphVisualizer:
                           linewidth=2, alpha=0.7)
             ax.add_patch(circle)
             
-            # Add step numbers
-            ax.text(x, y + 0.1, f"#{i}", ha='center', va='center', 
-                   fontsize=6, color='white', fontweight='bold')
+            # Collect for legend instead of adding text
+            if i == 0:
+                walk_handles.append(plt.Line2D([0], [0], marker='o', color='w',
+                                              markerfacecolor=highlight_color, markersize=10))
+                walk_labels.append(f'Start: Node {node}')
+            elif i == len(walk) - 1:
+                walk_handles.append(plt.Line2D([0], [0], marker='s', color='w',
+                                              markerfacecolor=highlight_color, markersize=10))
+                walk_labels.append(f'End: Node {node}')
+        
+        # Add walk sequence to legend
+        walk_sequence = ' → '.join([str(n) for n in walk[:10]])
+        if len(walk) > 10:
+            walk_sequence += f'... ({len(walk)} nodes total)'
+        
+        # Add legend with walk information
+        if walk_handles:
+            ax.legend(walk_handles, walk_labels, loc='upper left', title=f'Walk: {walk_sequence}')
         
         return fig, ax
     

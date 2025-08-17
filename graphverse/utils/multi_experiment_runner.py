@@ -5,7 +5,8 @@ import numpy as np
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from .experiment_manager import save_config
-from ..llm.evaluation import evaluate_model
+from ..llm.evaluation import evaluate_model, get_large_scale_trajectory_config
+from ..llm.large_scale_evaluation import LargeScaleEvaluator
 
 
 class MultiExperimentRunner:
@@ -156,6 +157,189 @@ class MultiExperimentRunner:
         
         if verbose:
             print(f"\n=== Context Window Analysis Complete ===")
+            print(f"Results saved to: {main_folder}")
+            print("Use plot_context_window_analysis() to visualize results")
+        
+        return main_folder
+    
+    def run_large_scale_context_window_experiments(
+        self,
+        model,
+        graph,
+        vocab,
+        rules,
+        context_windows: List[int],
+        num_walks_per_experiment: int = 1000000,
+        batch_size: int = 50000,
+        trajectory_sample_rate: float = 0.02,
+        use_large_scale_config: bool = True,
+        verbose: bool = True
+    ) -> str:
+        """
+        Run large-scale context window experiments using batch processing.
+        
+        Args:
+            model: The language model to evaluate
+            graph: Graph object
+            vocab: Vocabulary object
+            rules: List of rule objects
+            context_windows: List of context window sizes to test
+            num_walks_per_experiment: Number of walks to generate per experiment
+            batch_size: Number of walks per batch for processing
+            trajectory_sample_rate: Sampling rate for trajectory storage
+            use_large_scale_config: Whether to use optimized large-scale configuration
+            verbose: Whether to print progress
+            
+        Returns:
+            Path to the multi-experiment results folder
+        """
+        # Create main experiment folder
+        main_folder = self.create_multi_experiment_folder()
+        
+        # Save overall configuration
+        overall_config = {
+            "experiment_type": "large_scale_context_window_analysis",
+            "context_windows": context_windows,
+            "num_walks_per_experiment": num_walks_per_experiment,
+            "batch_size": batch_size,
+            "trajectory_sample_rate": trajectory_sample_rate,
+            "use_large_scale_config": use_large_scale_config,
+            "run_timestamp": self.run_timestamp,
+            "total_experiments": len(context_windows),
+            "total_walks": len(context_windows) * num_walks_per_experiment
+        }
+        save_config(overall_config, main_folder)
+        
+        if verbose:
+            print(f"Starting large-scale context window analysis with {len(context_windows)} experiments")
+            print(f"Context windows: {context_windows}")
+            print(f"Walks per experiment: {num_walks_per_experiment:,}")
+            print(f"Total walks: {len(context_windows) * num_walks_per_experiment:,}")
+            print(f"Batch size: {batch_size:,}")
+            print(f"Trajectory sampling rate: {trajectory_sample_rate:.1%}")
+            print(f"Results will be saved to: {main_folder}")
+        
+        # Run experiments for each context window
+        for i, context_window in enumerate(context_windows):
+            if verbose:
+                print(f"\n{'='*80}")
+                print(f"Experiment {i+1}/{len(context_windows)}: Context Window = {context_window}")
+                print(f"{'='*80}")
+            
+            # Create individual experiment folder
+            exp_folder = os.path.join(main_folder, "individual_experiments", f"ctx_{context_window}")
+            
+            # Set up trajectory sampling configuration
+            if use_large_scale_config:
+                trajectory_config = get_large_scale_trajectory_config(
+                    num_walks_per_experiment, 
+                    sample_rate=trajectory_sample_rate, 
+                    stratified=True
+                )
+            else:
+                trajectory_config = None
+            
+            # Update config for this experiment
+            exp_config = {
+                "context_window": context_window,
+                "num_walks": num_walks_per_experiment,
+                "batch_size": batch_size,
+                "trajectory_config": trajectory_config,
+                "experiment_id": i,
+                "start_time": datetime.now().isoformat()
+            }
+            save_config(exp_config, exp_folder)
+            
+            # Set model's context window if it has this parameter
+            if hasattr(model, 'context_window'):
+                model.context_window = context_window
+            elif hasattr(model, 'max_length'):
+                model.max_length = context_window
+            
+            # Use LargeScaleEvaluator for high walk counts
+            if num_walks_per_experiment >= 10000:
+                evaluator = LargeScaleEvaluator(exp_folder)
+                
+                try:
+                    evaluator.evaluate_large_scale(
+                        model=model,
+                        graph=graph,
+                        vocab=vocab,
+                        num_walks=num_walks_per_experiment,
+                        min_start_length=3,
+                        max_start_length=8,
+                        rules=rules,
+                        batch_size=batch_size,
+                        trajectory_sampling_config=trajectory_config,
+                        resume_from_checkpoint=True,
+                        verbose=verbose
+                    )
+                    
+                    # Load final results for aggregation
+                    results_file = os.path.join(exp_folder, "evaluation", "final_results.json")
+                    if os.path.exists(results_file):
+                        with open(results_file, "r") as f:
+                            final_results = json.load(f)
+                        error_summary = final_results["aggregated_error_summary"]
+                    else:
+                        error_summary = {"repeater_error_rate": 0.0, "ascender_error_rate": 0.0, 
+                                       "even_error_rate": 0.0, "broken_graph_error_rate": 0.0, "total_steps": 0}
+                        
+                except Exception as e:
+                    if verbose:
+                        print(f"Error in large-scale evaluation for context window {context_window}: {e}")
+                    error_summary = {"repeater_error_rate": 0.0, "ascender_error_rate": 0.0, 
+                                   "even_error_rate": 0.0, "broken_graph_error_rate": 0.0, "total_steps": 0}
+            
+            else:
+                # Use traditional evaluation for smaller experiments
+                try:
+                    evaluation_results, error_summary, kl_series, token_data, progressive_analysis, exemplars, trajectories = evaluate_model(
+                        model=model,
+                        graph=graph,
+                        vocab=vocab,
+                        num_walks=num_walks_per_experiment,
+                        min_start_length=3,
+                        max_start_length=8,
+                        rules=rules,
+                        verbose=verbose,
+                        trajectory_sampling_config=trajectory_config
+                    )
+                    
+                    # Save traditional results
+                    self._save_individual_experiment_results(
+                        exp_folder, evaluation_results, error_summary, kl_series, context_window
+                    )
+                    
+                except Exception as e:
+                    if verbose:
+                        print(f"Error in evaluation for context window {context_window}: {e}")
+                    error_summary = {"repeater_error_rate": 0.0, "ascender_error_rate": 0.0, 
+                                   "even_error_rate": 0.0, "broken_graph_error_rate": 0.0, "total_steps": 0}
+            
+            # Store results for aggregation (simplified for large-scale)
+            experiment_result = {
+                "context_window": context_window,
+                "error_summary": error_summary,
+                "num_walks": num_walks_per_experiment,
+                "experiment_folder": exp_folder,
+                "is_large_scale": num_walks_per_experiment >= 10000
+            }
+            self.experiment_results.append(experiment_result)
+            
+            if verbose:
+                print(f"Context {context_window} completed:")
+                print(f"  Repeater error rate: {error_summary['repeater_error_rate']:.4f}")
+                print(f"  Ascender error rate: {error_summary['ascender_error_rate']:.4f}")
+                print(f"  Even error rate: {error_summary['even_error_rate']:.4f}")
+        
+        # Save aggregated results
+        self._save_large_scale_aggregated_results(main_folder)
+        
+        if verbose:
+            print(f"\n{'='*80}")
+            print("LARGE-SCALE CONTEXT WINDOW ANALYSIS COMPLETE")
+            print(f"{'='*80}")
             print(f"Results saved to: {main_folder}")
             print("Use plot_context_window_analysis() to visualize results")
         
@@ -322,6 +506,48 @@ class MultiExperimentRunner:
                     kl_stats.get("mean_kl", 0),
                     kl_stats.get("std_kl", 0),
                     kl_stats.get("max_kl", 0)
+                ])
+    
+    def _save_large_scale_aggregated_results(self, main_folder: str):
+        """Save aggregated results for large-scale experiments."""
+        
+        # Prepare aggregated data (similar to original but handles large-scale)
+        aggregated_data = {
+            "context_windows": [r["context_window"] for r in self.experiment_results],
+            "repeater_error_rates": [r["error_summary"]["repeater_error_rate"] for r in self.experiment_results],
+            "ascender_error_rates": [r["error_summary"]["ascender_error_rate"] for r in self.experiment_results],
+            "even_error_rates": [r["error_summary"]["even_error_rate"] for r in self.experiment_results],
+            "broken_graph_error_rates": [r["error_summary"]["broken_graph_error_rate"] for r in self.experiment_results],
+            "total_steps": [r["error_summary"]["total_steps"] for r in self.experiment_results],
+            "num_walks_per_experiment": [r["num_walks"] for r in self.experiment_results],
+            "is_large_scale": [r["is_large_scale"] for r in self.experiment_results]
+        }
+        
+        # Save as JSON
+        aggregated_path = os.path.join(main_folder, "aggregated_results", "aggregated_results.json")
+        with open(aggregated_path, "w") as f:
+            json.dump(aggregated_data, f, indent=2)
+        
+        # Save as CSV for easy plotting
+        csv_path = os.path.join(main_folder, "aggregated_results", "error_rates_by_context.csv")
+        with open(csv_path, "w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                "context_window", "repeater_error_rate", "ascender_error_rate", 
+                "even_error_rate", "broken_graph_error_rate", "total_steps",
+                "num_walks", "is_large_scale"
+            ])
+            
+            for result in self.experiment_results:
+                writer.writerow([
+                    result["context_window"],
+                    result["error_summary"]["repeater_error_rate"],
+                    result["error_summary"]["ascender_error_rate"],
+                    result["error_summary"]["even_error_rate"],
+                    result["error_summary"]["broken_graph_error_rate"],
+                    result["error_summary"]["total_steps"],
+                    result["num_walks"],
+                    result["is_large_scale"]
                 ])
     
     def plot_context_window_analysis(self, results_folder: str, save_plots: bool = True):

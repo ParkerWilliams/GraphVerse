@@ -78,6 +78,97 @@ def plot_aggregate_kl(kl_csv_path, output_path=None):
         plt.show()
     plt.close()
 
+def plot_repeater_context_split(evaluation_results, rules, graph, context_windows, output_path=None, figsize=(15, 8)):
+    """
+    Plot repeater violations split by whether k is shorter or longer than context window.
+    
+    Args:
+        evaluation_results: List of evaluation results from evaluate_model
+        rules: List of rule objects
+        graph: Graph object
+        context_windows: List of context window sizes to analyze
+        output_path: Path to save plot (optional)
+        figsize: Figure size tuple
+    """
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    
+    # Collect data for each context window
+    shorter_data = {}
+    longer_data = {}
+    
+    for cw in context_windows:
+        violation_rates = collect_repeater_violations_by_length(evaluation_results, rules, graph, context_window=cw)
+        
+        # Aggregate rates for shorter and longer than context
+        shorter_rates = violation_rates['shorter_than_context']
+        longer_rates = violation_rates['longer_than_context']
+        
+        # Calculate average violation rate for each category
+        if shorter_rates:
+            avg_shorter = np.mean(list(shorter_rates.values()))
+        else:
+            avg_shorter = 0.0
+            
+        if longer_rates:
+            avg_longer = np.mean(list(longer_rates.values()))
+        else:
+            avg_longer = 0.0
+            
+        shorter_data[cw] = avg_shorter
+        longer_data[cw] = avg_longer
+    
+    # Plot data
+    x = list(shorter_data.keys())
+    y_shorter = list(shorter_data.values())
+    y_longer = list(longer_data.values())
+    
+    # Left plot: Violation rates comparison
+    axes[0].plot(x, [y * 100 for y in y_shorter], 'o-', label='k ≤ context window', 
+                 linewidth=2.5, markersize=8, color='#2E8B57')
+    axes[0].plot(x, [y * 100 for y in y_longer], 's-', label='k > context window', 
+                 linewidth=2.5, markersize=8, color='#DC143C')
+    
+    axes[0].set_xlabel('Context Window Size', fontsize=12)
+    axes[0].set_ylabel('Average Violation Rate (%)', fontsize=12)
+    axes[0].set_title('Repeater Violations by Context Window Comparison', fontsize=14, fontweight='bold')
+    axes[0].legend(fontsize=11)
+    axes[0].grid(True, alpha=0.3)
+    axes[0].set_ylim(0, max(max(y_shorter), max(y_longer)) * 120 if y_shorter or y_longer else 100)
+    
+    # Right plot: Ratio of violations
+    ratio_data = []
+    for cw in x:
+        if longer_data[cw] > 0:
+            ratio = shorter_data[cw] / longer_data[cw]
+        else:
+            ratio = 0
+        ratio_data.append(ratio)
+    
+    bars = axes[1].bar(x, ratio_data, color='#4169E1', alpha=0.7, edgecolor='black')
+    axes[1].axhline(y=1, color='red', linestyle='--', alpha=0.5, label='Equal violation rate')
+    axes[1].set_xlabel('Context Window Size', fontsize=12)
+    axes[1].set_ylabel('Ratio (Shorter/Longer)', fontsize=12)
+    axes[1].set_title('Violation Rate Ratio: Shorter vs Longer than Context', fontsize=14, fontweight='bold')
+    axes[1].legend(fontsize=11)
+    axes[1].grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar, val in zip(bars, ratio_data):
+        height = bar.get_height()
+        axes[1].text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                    f'{val:.2f}', ha='center', va='bottom', fontsize=10)
+    
+    plt.suptitle('Repeater Rule Learning: Impact of Context Window', fontsize=16, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"Plot saved to: {output_path}")
+    else:
+        plt.show()
+    
+    return fig, axes
+
 def plot_repeater_context_analysis(data_dict, output_path=None, figsize=(15, 10)):
     """
     Plot how context window length affects repeater rule violation rates across models and repeater lengths.
@@ -179,7 +270,7 @@ def plot_repeater_context_analysis(data_dict, output_path=None, figsize=(15, 10)
     
     return fig, axes
 
-def collect_repeater_violations_by_length(evaluation_results, rules, graph):
+def collect_repeater_violations_by_length(evaluation_results, rules, graph, context_window=None):
     """
     Analyze repeater rule violations broken down by repeater length k.
     
@@ -187,21 +278,33 @@ def collect_repeater_violations_by_length(evaluation_results, rules, graph):
         evaluation_results: List of evaluation results from evaluate_model
         rules: List of rule objects
         graph: Graph object
+        context_window: Current context window size (optional)
         
     Returns:
-        Dictionary mapping repeater_length_k -> violation_rate
+        Dictionary with violation rates for all repeaters, and separated by context window comparison
     """
     # Find repeater rules and group by k value
     repeater_rules_by_k = defaultdict(list)
+    repeater_rules_shorter_than_context = defaultdict(list)
+    repeater_rules_longer_than_context = defaultdict(list)
     
     for rule in rules:
         if hasattr(rule, 'is_repeater_rule') and rule.is_repeater_rule:
             # Group repeater nodes by their k values
             for node, k in rule.members_nodes_dict.items():
                 repeater_rules_by_k[k].append((rule, node))
+                
+                # Also categorize by context window if provided
+                if context_window is not None:
+                    if k <= context_window:
+                        repeater_rules_shorter_than_context[k].append((rule, node))
+                    else:
+                        repeater_rules_longer_than_context[k].append((rule, node))
     
-    # Count violations for each k value
-    violation_counts = {k: 0 for k in repeater_rules_by_k.keys()}
+    # Count violations for each category
+    violation_counts_all = {k: 0 for k in repeater_rules_by_k.keys()}
+    violation_counts_shorter = {k: 0 for k in repeater_rules_shorter_than_context.keys()}
+    violation_counts_longer = {k: 0 for k in repeater_rules_longer_than_context.keys()}
     total_walks = len(evaluation_results)
     
     for result in evaluation_results:
@@ -209,23 +312,40 @@ def collect_repeater_violations_by_length(evaluation_results, rules, graph):
         if not walk:
             continue
             
+        # Check all repeaters
         for k, rule_node_pairs in repeater_rules_by_k.items():
             for rule, node in rule_node_pairs:
-                # Check if this specific node violates the rule
                 if node in walk:
-                    # Create a temporary rule with just this node
                     temp_rule_dict = {node: k}
                     from ..graph.rules import RepeaterRule
                     temp_rule = RepeaterRule(temp_rule_dict)
                     
                     if not temp_rule.is_satisfied_by(walk, graph):
-                        violation_counts[k] += 1
+                        violation_counts_all[k] += 1
+                        
+                        # Also count in appropriate context window category
+                        if context_window is not None:
+                            if k <= context_window:
+                                violation_counts_shorter[k] += 1
+                            else:
+                                violation_counts_longer[k] += 1
                         break  # Only count one violation per walk per k
     
     # Calculate violation rates
-    violation_rates = {}
-    for k, count in violation_counts.items():
-        violation_rates[k] = count / total_walks if total_walks > 0 else 0.0
+    violation_rates = {
+        'all': {},
+        'shorter_than_context': {},
+        'longer_than_context': {}
+    }
+    
+    for k, count in violation_counts_all.items():
+        violation_rates['all'][k] = count / total_walks if total_walks > 0 else 0.0
+    
+    for k, count in violation_counts_shorter.items():
+        violation_rates['shorter_than_context'][k] = count / total_walks if total_walks > 0 else 0.0
+        
+    for k, count in violation_counts_longer.items():
+        violation_rates['longer_than_context'][k] = count / total_walks if total_walks > 0 else 0.0
     
     return violation_rates
 
@@ -266,6 +386,241 @@ def load_multi_model_repeater_data(input_path):
                 converted_data[model_name][context_window][k] = violation_rate
     
     return converted_data
+
+
+def plot_token_kl_heatmap(token_level_data, output_path=None, figsize=(15, 8), max_walks=10, max_steps=50):
+    """
+    Plot a heatmap of KL divergences across walks and token positions.
+    
+    Args:
+        token_level_data: List of token-level dictionaries from evaluate_model
+        output_path: Path to save plot (optional)
+        figsize: Figure size tuple
+        max_walks: Maximum number of walks to display
+        max_steps: Maximum number of steps per walk to display
+    """
+    if not token_level_data:
+        print("No token-level data provided")
+        return
+    
+    # Organize data into a matrix
+    walk_indices = sorted(set(item['walk_idx'] for item in token_level_data))[:max_walks]
+    
+    # Create matrix for each KL divergence type
+    kl_types = ['negative_exponential', 'uniform', 'graph_neighbors']
+    
+    fig, axes = plt.subplots(len(kl_types), 1, figsize=figsize)
+    if len(kl_types) == 1:
+        axes = [axes]
+    
+    for kl_idx, kl_type in enumerate(kl_types):
+        # Initialize matrix with NaN
+        kl_matrix = np.full((len(walk_indices), max_steps), np.nan)
+        
+        for item in token_level_data:
+            walk_idx = item['walk_idx']
+            step_idx = item['step_idx']
+            
+            if walk_idx in walk_indices and step_idx < max_steps:
+                row_idx = walk_indices.index(walk_idx)
+                kl_value = item['kl_divergences'].get(kl_type, np.nan)
+                kl_matrix[row_idx, step_idx] = kl_value
+        
+        # Plot heatmap
+        im = axes[kl_idx].imshow(kl_matrix, cmap='viridis', aspect='auto', interpolation='nearest')
+        axes[kl_idx].set_title(f'KL Divergence: {kl_type}')
+        axes[kl_idx].set_xlabel('Token Position')
+        axes[kl_idx].set_ylabel('Walk Index')
+        
+        # Add colorbar
+        plt.colorbar(im, ax=axes[kl_idx], label='KL Divergence')
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"Token KL heatmap saved to: {output_path}")
+    else:
+        plt.show()
+    
+    return fig, axes
+
+
+def plot_token_entropy_vs_kl(token_level_data, output_path=None, figsize=(12, 8), sample_size=1000):
+    """
+    Plot relationship between model entropy and KL divergence for individual tokens.
+    
+    Args:
+        token_level_data: List of token-level dictionaries from evaluate_model
+        output_path: Path to save plot (optional)
+        figsize: Figure size tuple
+        sample_size: Number of tokens to sample for plotting
+    """
+    if not token_level_data:
+        print("No token-level data provided")
+        return
+    
+    # Sample data if too large
+    if len(token_level_data) > sample_size:
+        import random
+        token_data_sample = random.sample(token_level_data, sample_size)
+    else:
+        token_data_sample = token_level_data
+    
+    # Extract data
+    entropies = [item['entropy'] for item in token_data_sample]
+    kl_neg_exp = [item['kl_divergences']['negative_exponential'] for item in token_data_sample]
+    kl_uniform = [item['kl_divergences']['uniform'] for item in token_data_sample]
+    confidences = [item['prediction_confidence'] for item in token_data_sample]
+    
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    
+    # Entropy vs KL (negative exponential)
+    axes[0, 0].scatter(entropies, kl_neg_exp, alpha=0.6, s=20)
+    axes[0, 0].set_xlabel('Model Entropy')
+    axes[0, 0].set_ylabel('KL Divergence (Negative Exponential)')
+    axes[0, 0].set_title('Entropy vs KL Divergence')
+    
+    # Entropy vs KL (uniform)
+    axes[0, 1].scatter(entropies, kl_uniform, alpha=0.6, s=20, color='orange')
+    axes[0, 1].set_xlabel('Model Entropy')
+    axes[0, 1].set_ylabel('KL Divergence (Uniform)')
+    axes[0, 1].set_title('Entropy vs KL Divergence (Uniform)')
+    
+    # Confidence vs KL (negative exponential)
+    axes[1, 0].scatter(confidences, kl_neg_exp, alpha=0.6, s=20, color='green')
+    axes[1, 0].set_xlabel('Prediction Confidence')
+    axes[1, 0].set_ylabel('KL Divergence (Negative Exponential)')
+    axes[1, 0].set_title('Confidence vs KL Divergence')
+    
+    # Context length vs KL
+    context_lengths = [item['context_length'] for item in token_data_sample]
+    axes[1, 1].scatter(context_lengths, kl_neg_exp, alpha=0.6, s=20, color='red')
+    axes[1, 1].set_xlabel('Context Length')
+    axes[1, 1].set_ylabel('KL Divergence (Negative Exponential)')
+    axes[1, 1].set_title('Context Length vs KL Divergence')
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"Entropy vs KL plot saved to: {output_path}")
+    else:
+        plt.show()
+    
+    return fig, axes
+
+
+def plot_prediction_confidence_analysis(token_level_data, output_path=None, figsize=(15, 10)):
+    """
+    Analyze model prediction confidence patterns.
+    
+    Args:
+        token_level_data: List of token-level dictionaries from evaluate_model
+        output_path: Path to save plot (optional)
+        figsize: Figure size tuple
+    """
+    if not token_level_data:
+        print("No token-level data provided")
+        return
+    
+    # Separate valid and invalid edge predictions
+    valid_edge_data = [item for item in token_level_data if item['is_valid_edge']]
+    invalid_edge_data = [item for item in token_level_data if not item['is_valid_edge']]
+    
+    fig, axes = plt.subplots(2, 3, figsize=figsize)
+    
+    # Confidence distributions
+    valid_confidences = [item['prediction_confidence'] for item in valid_edge_data]
+    invalid_confidences = [item['prediction_confidence'] for item in invalid_edge_data]
+    
+    axes[0, 0].hist(valid_confidences, bins=30, alpha=0.7, label='Valid Edges', color='green')
+    axes[0, 0].hist(invalid_confidences, bins=30, alpha=0.7, label='Invalid Edges', color='red')
+    axes[0, 0].set_xlabel('Prediction Confidence')
+    axes[0, 0].set_ylabel('Count')
+    axes[0, 0].set_title('Confidence Distribution by Edge Validity')
+    axes[0, 0].legend()
+    
+    # KL divergence distributions
+    valid_kl = [item['kl_divergences']['negative_exponential'] for item in valid_edge_data]
+    invalid_kl = [item['kl_divergences']['negative_exponential'] for item in invalid_edge_data]
+    
+    axes[0, 1].hist(valid_kl, bins=30, alpha=0.7, label='Valid Edges', color='green')
+    axes[0, 1].hist(invalid_kl, bins=30, alpha=0.7, label='Invalid Edges', color='red')
+    axes[0, 1].set_xlabel('KL Divergence')
+    axes[0, 1].set_ylabel('Count')
+    axes[0, 1].set_title('KL Divergence Distribution by Edge Validity')
+    axes[0, 1].legend()
+    
+    # Entropy distributions
+    valid_entropy = [item['entropy'] for item in valid_edge_data]
+    invalid_entropy = [item['entropy'] for item in invalid_edge_data]
+    
+    axes[0, 2].hist(valid_entropy, bins=30, alpha=0.7, label='Valid Edges', color='green')
+    axes[0, 2].hist(invalid_entropy, bins=30, alpha=0.7, label='Invalid Edges', color='red')
+    axes[0, 2].set_xlabel('Model Entropy')
+    axes[0, 2].set_ylabel('Count')
+    axes[0, 2].set_title('Entropy Distribution by Edge Validity')
+    axes[0, 2].legend()
+    
+    # Position-based analysis
+    step_positions = [item['step_idx'] for item in token_level_data]
+    confidences = [item['prediction_confidence'] for item in token_level_data]
+    kl_values = [item['kl_divergences']['negative_exponential'] for item in token_level_data]
+    
+    # Binned analysis
+    max_pos = max(step_positions)
+    bins = min(20, max_pos)
+    bin_edges = np.linspace(0, max_pos, bins + 1)
+    
+    bin_confidences = []
+    bin_kl = []
+    bin_centers = []
+    
+    for i in range(bins):
+        mask = (np.array(step_positions) >= bin_edges[i]) & (np.array(step_positions) < bin_edges[i + 1])
+        if np.sum(mask) > 0:
+            bin_confidences.append(np.mean([confidences[j] for j in range(len(confidences)) if mask[j]]))
+            bin_kl.append(np.mean([kl_values[j] for j in range(len(kl_values)) if mask[j]]))
+            bin_centers.append((bin_edges[i] + bin_edges[i + 1]) / 2)
+    
+    axes[1, 0].plot(bin_centers, bin_confidences, 'o-', color='blue')
+    axes[1, 0].set_xlabel('Token Position')
+    axes[1, 0].set_ylabel('Mean Prediction Confidence')
+    axes[1, 0].set_title('Confidence vs Position')
+    
+    axes[1, 1].plot(bin_centers, bin_kl, 'o-', color='purple')
+    axes[1, 1].set_xlabel('Token Position')
+    axes[1, 1].set_ylabel('Mean KL Divergence')
+    axes[1, 1].set_title('KL Divergence vs Position')
+    
+    # Top prediction accuracy
+    correct_predictions = sum(1 for item in token_level_data if item['is_valid_edge'])
+    total_predictions = len(token_level_data)
+    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+    
+    # Create bar chart for summary statistics instead of text
+    categories = ['Accuracy', 'Valid/Total']
+    values = [accuracy, correct_predictions/total_predictions if total_predictions > 0 else 0]
+    bars = axes[1, 2].bar(categories, values, color=['blue', 'green'], alpha=0.7)
+    axes[1, 2].set_ylim(0, 1)
+    axes[1, 2].set_ylabel('Ratio')
+    axes[1, 2].set_title('Prediction Summary')
+    
+    # Add legend with actual counts
+    axes[1, 2].legend([f'Accuracy: {accuracy:.3f}', 
+                       f'Valid: {correct_predictions}/{total_predictions}'],
+                      loc='upper right', fontsize=10)
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"Prediction confidence analysis saved to: {output_path}")
+    else:
+        plt.show()
+    
+    return fig, axes
 
 def plot_density_vs_accuracy(density_study_results, output_path=None, figsize=(15, 10)):
     """

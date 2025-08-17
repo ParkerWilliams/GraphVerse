@@ -2,6 +2,56 @@ import random
 from abc import ABC, abstractmethod
 
 
+def define_all_rules_by_percentage(n, ascender_percent, even_percent, repeater_percent, repeater_min_steps, repeater_max_steps, verbose=False):
+    """
+    Define all rule vertices using percentages while ensuring each vertex is assigned at most one rule.
+    
+    Args:
+        n: Total number of nodes in the graph
+        ascender_percent: Percentage of nodes to be ascenders (0.0 to 100.0)
+        even_percent: Percentage of nodes to be even rule nodes (0.0 to 100.0)
+        repeater_percent: Percentage of nodes to be repeaters (0.0 to 100.0)
+        repeater_min_steps: Minimum steps for repeater rules
+        repeater_max_steps: Maximum steps for repeater rules
+        verbose: Whether to print detailed information
+        
+    Returns:
+        tuple: (ascenders_set, evens_set, repeaters_dict)
+    """
+    if verbose:
+        print(f"\n  Defining rules by percentage for {n} nodes:")
+        print(f"    Ascender percentage: {ascender_percent}%")
+        print(f"    Even rule percentage: {even_percent}%")
+        print(f"    Repeater percentage: {repeater_percent}%")
+    
+    # Convert percentages to counts
+    num_ascenders = max(0, int(n * ascender_percent / 100))
+    num_evens = max(0, int(n * even_percent / 100))
+    num_repeaters = max(0, int(n * repeater_percent / 100))
+    
+    if verbose:
+        print(f"    Converted to counts: {num_ascenders} ascenders, {num_evens} evens, {num_repeaters} repeaters")
+        total_rule_nodes = num_ascenders + num_evens + num_repeaters
+        actual_percentage = (total_rule_nodes / n) * 100
+        print(f"    Total rule nodes: {total_rule_nodes}/{n} ({actual_percentage:.1f}%)")
+    
+    # Use existing function with calculated counts
+    ascenders, evens, repeaters = define_all_rules(
+        n, num_ascenders, num_evens, num_repeaters, repeater_min_steps, repeater_max_steps
+    )
+    
+    if verbose:
+        actual_ascender_percent = (len(ascenders) / n) * 100
+        actual_even_percent = (len(evens) / n) * 100
+        actual_repeater_percent = (len(repeaters) / n) * 100
+        print(f"    Actual percentages achieved:")
+        print(f"      Ascenders: {len(ascenders)} nodes ({actual_ascender_percent:.2f}%)")
+        print(f"      Even rules: {len(evens)} nodes ({actual_even_percent:.2f}%)")
+        print(f"      Repeaters: {len(repeaters)} nodes ({actual_repeater_percent:.2f}%)")
+    
+    return ascenders, evens, repeaters
+
+
 def define_all_rules(n, num_ascenders, num_evens, num_repeaters, repeater_min_steps, repeater_max_steps):
     """
     Define all rule vertices while ensuring each vertex is assigned at most one rule.

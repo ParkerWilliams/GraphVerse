@@ -67,27 +67,40 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
         return None
 
 def generate_multiple_walks(graph, num_walks, min_length, max_length, rules, verbose=False):
+    from tqdm import tqdm
+    
     walks = []
     attempts = 0
     max_attempts = 10
     total_attempts = 0
+    failed_attempts = 0
+    
+    if verbose:
+        print(f"\n  Generating {num_walks} walks (length {min_length}-{max_length})...")
+        progress_bar = tqdm(total=num_walks, desc="Generating walks", unit="walk")
     
     while len(walks) < num_walks:
-        if verbose:
-            print(f"Attempts: {attempts}/{max_attempts}, Walks generated: {len(walks)}/{num_walks}, Total attempts: {total_attempts}")
         start_vertex = random.choice(list(range(graph.n)))
-        walk = generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts, verbose)
+        walk = generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts, verbose=False)
         
         if walk:
             walks.append(walk)
             attempts = 0
+            if verbose:
+                progress_bar.update(1)
+                progress_bar.set_postfix({"failed": failed_attempts, "success_rate": f"{len(walks)/(len(walks)+failed_attempts):.1%}"})
         else:
             attempts += 1
             total_attempts += 1
+            failed_attempts += 1
             
             if attempts >= max_attempts:
                 attempts = 0
     
     if verbose:
-        print(f"{len(walks)} walks generated successfully.")
+        progress_bar.close()
+        print(f"  ✓ {len(walks)} walks generated successfully")
+        if failed_attempts > 0:
+            print(f"  ⚠ {failed_attempts} failed attempts ({failed_attempts/(len(walks)+failed_attempts):.1%} failure rate)")
+    
     return walks

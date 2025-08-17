@@ -1,8 +1,10 @@
 import torch
 import numpy as np
 import random
+from tqdm import tqdm
 
 from ..graph.walk import generate_multiple_walks, generate_valid_walk
+from ..analysis.metadata import TrainingCorpusMetadata
 
 
 class WalkVocabulary:
@@ -55,24 +57,30 @@ def prepare_training_data(
         vocab: WalkVocabulary object mapping node indices to tokens
     """
     # Generate walks
-    if verbose:
-        print(f"Generating {num_walks} random walks...")
     walks = generate_multiple_walks(
         graph, num_walks, min_length, max_length, rules, verbose=verbose
     )
     
     if verbose:
-        print(f"Generating a walk starting from each node in the graph...")
+        print(f"\n  Generating a walk starting from each node ({graph.n} nodes)...")
+    
     per_node_walks = []
-    for node in range(graph.n):
+    node_iterator = tqdm(range(graph.n), desc="Per-node walks", unit="node") if verbose else range(graph.n)
+    
+    for node in node_iterator:
         walk = generate_valid_walk(
-            graph, node, min_length, max_length, rules, verbose=verbose
+            graph, node, min_length, max_length, rules, verbose=False
         )
         if walk:
             per_node_walks.append(walk)
+            if verbose:
+                node_iterator.set_postfix({"walks": len(per_node_walks), "success_rate": f"{len(per_node_walks)/(node+1):.1%}"})
     
     # Combine all walks
     all_walks = walks + per_node_walks
+    
+    if verbose:
+        print(f"\n  Creating vocabulary and preparing training sequences...")
     
     # Create vocabulary using WalkVocabulary class
     vocab = WalkVocabulary(all_walks)
@@ -81,7 +89,13 @@ def prepare_training_data(
     max_seq_len = max(len(walk) for walk in all_walks)
     training_sequences = []
     
-    for walk in all_walks:
+    if verbose:
+        print(f"    Maximum sequence length: {max_seq_len}")
+        print(f"    Processing {len(all_walks)} total walks...")
+    
+    walk_iterator = tqdm(all_walks, desc="Processing walks", unit="walk") if verbose else all_walks
+    
+    for walk in walk_iterator:
         # Convert walk to indices, including START and END tokens
         walk_indices = [vocab.token2idx["<START>"]] + [vocab.token2idx[str(node)] for node in walk] + [vocab.token2idx["<END>"]]
         # Pad sequence to max_seq_len + 2 (+2 for START and END tokens)
@@ -91,7 +105,27 @@ def prepare_training_data(
     # Convert to tensor
     training_data = torch.tensor(training_sequences, dtype=torch.long)
     
-    return training_data, vocab
+    if verbose:
+        print(f"  ✓ Data preparation complete")
+    
+    # Create comprehensive corpus metadata
+    if verbose:
+        print(f"  Generating training corpus metadata...")
+    
+    corpus_metadata = TrainingCorpusMetadata(all_walks, rules, vocab)
+    
+    if verbose:
+        summary = corpus_metadata.get_summary()
+        print(f"  Corpus metadata summary:")
+        print(f"    Total walks: {summary['basic_stats']['total_walks']}")
+        print(f"    Unique sequences: {summary['basic_stats']['unique_sequences']}")
+        print(f"    Sequence diversity: {summary['basic_stats']['sequence_diversity']:.3f}")
+        if 'rule_exposure' in summary:
+            print(f"    Rule exposure:")
+            for rule_type, percent in summary['rule_exposure']['exposure_percentages'].items():
+                print(f"      {rule_type}: {percent:.1f}%")
+    
+    return training_data, vocab, corpus_metadata
 
 def prepare_density_controlled_training_data(
     graph, 
@@ -227,3 +261,151 @@ def prepare_density_controlled_training_data(
         print(f"  Repeater exposures: {repeater_exposure_counts}")
     
     return training_data, vocab, density_stats
+
+
+def analyze_rule_exposure_in_corpus_legacy(walks, rules, verbose=False):
+    """
+    Analyze what portion of the training corpus includes each rule type.
+    
+    Args:
+        walks: List of walks in the training corpus
+        rules: List of rule instances
+        verbose: Whether to print detailed statistics
+        
+    Returns:
+        dict: Statistics about rule exposure in the corpus
+    """
+    total_walks = len(walks)
+    if total_walks == 0:
+        return {}
+    
+    # Initialize counters
+    rule_exposure = {
+        'ascender_walks': 0,
+        'even_walks': 0, 
+        'repeater_walks': 0,
+        'no_rule_walks': 0,
+        'multiple_rule_walks': 0,
+        'total_walks': total_walks,
+        'rule_node_frequencies': {},
+        'rule_type_details': {}
+    }
+    
+    # Find rule instances
+    ascender_rule = None
+    even_rule = None
+    repeater_rule = None
+    
+    for rule in rules:
+        if hasattr(rule, 'is_ascender_rule') and rule.is_ascender_rule:
+            ascender_rule = rule
+        elif hasattr(rule, 'is_even_rule') and rule.is_even_rule:
+            even_rule = rule
+        elif hasattr(rule, 'is_repeater_rule') and rule.is_repeater_rule:
+            repeater_rule = rule
+    
+    # Collect all rule nodes
+    all_rule_nodes = set()
+    if ascender_rule:
+        all_rule_nodes.update(ascender_rule.member_nodes)
+        rule_exposure['rule_type_details']['ascender'] = {
+            'nodes': list(ascender_rule.member_nodes),
+            'count': len(ascender_rule.member_nodes),
+            'walk_exposure': 0
+        }
+    
+    if even_rule:
+        all_rule_nodes.update(even_rule.member_nodes)
+        rule_exposure['rule_type_details']['even'] = {
+            'nodes': list(even_rule.member_nodes),
+            'count': len(even_rule.member_nodes),
+            'walk_exposure': 0
+        }
+    
+    if repeater_rule:
+        all_rule_nodes.update(repeater_rule.member_nodes)
+        rule_exposure['rule_type_details']['repeater'] = {
+            'nodes': list(repeater_rule.member_nodes),
+            'k_values': dict(repeater_rule.members_nodes_dict),
+            'count': len(repeater_rule.member_nodes),
+            'walk_exposure': 0
+        }
+    
+    # Initialize node frequency tracking
+    for node in all_rule_nodes:
+        rule_exposure['rule_node_frequencies'][node] = 0
+    
+    if verbose:
+        print(f"\n  Analyzing rule exposure in {total_walks} walks...")
+        print(f"    Total rule nodes: {len(all_rule_nodes)}")
+        if ascender_rule:
+            print(f"    Ascender nodes: {len(ascender_rule.member_nodes)}")
+        if even_rule:
+            print(f"    Even rule nodes: {len(even_rule.member_nodes)}")
+        if repeater_rule:
+            print(f"    Repeater nodes: {len(repeater_rule.member_nodes)}")
+    
+    # Analyze each walk
+    for walk in walks:
+        walk_rule_types = set()
+        walk_has_rule = False
+        
+        # Check which rule nodes appear in this walk
+        for node in walk:
+            if node in all_rule_nodes:
+                walk_has_rule = True
+                rule_exposure['rule_node_frequencies'][node] += 1
+                
+                # Determine rule type
+                if ascender_rule and node in ascender_rule.member_nodes:
+                    walk_rule_types.add('ascender')
+                if even_rule and node in even_rule.member_nodes:
+                    walk_rule_types.add('even')
+                if repeater_rule and node in repeater_rule.member_nodes:
+                    walk_rule_types.add('repeater')
+        
+        # Count walk types
+        if not walk_has_rule:
+            rule_exposure['no_rule_walks'] += 1
+        else:
+            if 'ascender' in walk_rule_types:
+                rule_exposure['ascender_walks'] += 1
+                rule_exposure['rule_type_details']['ascender']['walk_exposure'] += 1
+            if 'even' in walk_rule_types:
+                rule_exposure['even_walks'] += 1
+                rule_exposure['rule_type_details']['even']['walk_exposure'] += 1
+            if 'repeater' in walk_rule_types:
+                rule_exposure['repeater_walks'] += 1
+                rule_exposure['rule_type_details']['repeater']['walk_exposure'] += 1
+            
+            if len(walk_rule_types) > 1:
+                rule_exposure['multiple_rule_walks'] += 1
+    
+    # Calculate percentages
+    rule_exposure['percentages'] = {
+        'ascender_walks': (rule_exposure['ascender_walks'] / total_walks) * 100,
+        'even_walks': (rule_exposure['even_walks'] / total_walks) * 100,
+        'repeater_walks': (rule_exposure['repeater_walks'] / total_walks) * 100,
+        'no_rule_walks': (rule_exposure['no_rule_walks'] / total_walks) * 100,
+        'multiple_rule_walks': (rule_exposure['multiple_rule_walks'] / total_walks) * 100,
+        'any_rule_walks': ((total_walks - rule_exposure['no_rule_walks']) / total_walks) * 100
+    }
+    
+    if verbose:
+        print(f"\n  Rule exposure analysis:")
+        print(f"    Walks with ascender nodes: {rule_exposure['ascender_walks']} ({rule_exposure['percentages']['ascender_walks']:.1f}%)")
+        print(f"    Walks with even rule nodes: {rule_exposure['even_walks']} ({rule_exposure['percentages']['even_walks']:.1f}%)")
+        print(f"    Walks with repeater nodes: {rule_exposure['repeater_walks']} ({rule_exposure['percentages']['repeater_walks']:.1f}%)")
+        print(f"    Walks with no rule nodes: {rule_exposure['no_rule_walks']} ({rule_exposure['percentages']['no_rule_walks']:.1f}%)")
+        print(f"    Walks with multiple rule types: {rule_exposure['multiple_rule_walks']} ({rule_exposure['percentages']['multiple_rule_walks']:.1f}%)")
+        print(f"    Total walks with any rules: {total_walks - rule_exposure['no_rule_walks']} ({rule_exposure['percentages']['any_rule_walks']:.1f}%)")
+        
+        # Show most/least frequent rule nodes
+        if rule_exposure['rule_node_frequencies']:
+            sorted_frequencies = sorted(rule_exposure['rule_node_frequencies'].items(), key=lambda x: x[1], reverse=True)
+            print(f"\n  Most frequent rule nodes:")
+            for node, freq in sorted_frequencies[:5]:
+                percent = (freq / total_walks) * 100
+                print(f"    Node {node}: {freq} walks ({percent:.1f}%)")
+    
+    return rule_exposure
