@@ -1,0 +1,61 @@
+[
+  {
+    "walk_idx": 0,
+    "step_idx": 0,
+    "context_length": 9,
+    "current_vertex": 33,
+    "predicted_vertex": "12",
+    "predicted_idx": 12,
+    "prediction_confidence": 0.8406092524528503,
+    "entropy": 0.9618679285049438,
+    "kl_divergences": {
+      "negative_exponential": 3.9269447326660156,
+      "uniform": 3.6728596687316895,
+      "graph_neighbors": 5.062130928039551,
+      "exponential_mle": 1.0358288288116455
+    },
+    "top_5_predictions": [
+      {
+        "token": "12",
+        "probability": 0.8406092524528503,
+        "idx": 12
+      },
+      {
+        "token": "13",
+        "probability": 0.037516187876462936,
+        "idx": 13
+      },
+      {
+        "token": "2",
+        "probability": 0.015984894707798958,
+        "idx": 2
+      },
+      {
+        "token": "53",
+        "probability": 0.014905653893947601,
+        "idx": 53
+      },
+      {
+        "token": "4",
+        "probability": 0.008573767729103565,
+        "idx": 4
+      }
+    ],
+    "top_5_prob_sum": 0.9175897240638733,
+    "top_10_prob_sum": 0.9453722238540649,
+    "gini_coefficient": 0.9503651857376099,
+    "effective_vocab_size": 4,
+    "prob_variance": 0.006854015868157148,
+    "prob_std": 0.08278898149728775,
+    "context_tokens": [
+      "12",
+      "4",
+      "66",
+      "0",
+      "34",
+      "2",
+      "97",
+      "24",
+      "33"
+    ],
+    "is_valid_edge": 

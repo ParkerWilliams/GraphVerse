@@ -1,0 +1,19 @@
+{
+  "n": 100,
+  "num_walks": 1000,
+  "min_walk_length": 5,
+  "max_walk_length": 10,
+  "num_ascenders": 2.0,
+  "num_evens": 3.0,
+  "num_repeaters": 1.0,
+  "repeater_min_steps": 2,
+  "repeater_max_steps": 4,
+  "epochs": 3,
+  "batch_size": 16,
+  "learning_rate": 0.001,
+  "context_window_size": null,
+  "repeater_distance": null,
+  "seed": null,
+  "use_percentages": true,
+  "rule_definition_method": "percentage_based"
+}

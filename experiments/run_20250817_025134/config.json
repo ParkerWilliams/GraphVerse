@@ -1,0 +1,22 @@
+{
+  "n": 100,
+  "num_walks": 1000,
+  "context_window_size": 5,
+  "min_walk_length": 10,
+  "max_walk_length": 10,
+  "walk_length_constraint": "2x_context_window",
+  "num_ascenders": 2.0,
+  "num_evens": 3.0,
+  "num_repeaters": 1.0,
+  "repeater_min_steps": 3,
+  "repeater_max_steps": 7,
+  "epochs": 3,
+  "batch_size": 16,
+  "learning_rate": 0.001,
+  "repeater_distance": null,
+  "seed": null,
+  "use_percentages": true,
+  "rule_definition_method": "percentage_based",
+  "edge_concentration": 0.8,
+  "edge_weight_strategy": "dirichlet"
+}

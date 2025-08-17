@@ -1,0 +1,8 @@
+{
+  "repeater_error_rate": 0.001,
+  "ascender_error_rate": 0.008,
+  "even_error_rate": 0.013,
+  "broken_graph_error_rate": 0.943,
+  "total_steps": 279,
+  "avg_steps_per_walk": 0.279
+}

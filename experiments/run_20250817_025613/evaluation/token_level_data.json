@@ -1,0 +1,123 @@
+[
+  {
+    "walk_idx": 0,
+    "step_idx": 0,
+    "context_length": 10,
+    "current_vertex": 91,
+    "predicted_vertex": "91",
+    "predicted_idx": 91,
+    "prediction_confidence": 0.5132561922073364,
+    "entropy": 2.59006404876709,
+    "kl_divergences": {
+      "uniform_random": 2.044663667678833,
+      "valid_neighbors": 13.577548027038574,
+      "degree_weighted": 13.578718185424805,
+      "graph_structure": 13.674785614013672,
+      "exponential_mle": 4.805346488952637
+    },
+    "normalized_metrics": {
+      "model_confidence": 0.5132561922073364,
+      "model_entropy": 2.59006404876709,
+      "model_perplexity": 1.9483447074890137,
+      "skill_scores": {
+        "uniform_random": 0.5084841940468436,
+        "valid_neighbors": 0.5132561873398983,
+        "degree_weighted": 0.5132561873398983,
+        "graph_structure": 0.5132561873398983,
+        "exponential_mle": -5.788934797609052
+      },
+      "information_gains": {
+        "uniform_random": 2.0446643829345703,
+        "valid_neighbors": 1.238577127456665,
+        "degree_weighted": 1.229154348373413,
+        "graph_structure": 1.1502530574798584,
+        "exponential_mle": -2.312131702899933
+      },
+      "relative_entropies": {
+        "uniform_random": 0.5588383627940282,
+        "valid_neighbors": 0.6764969422707061,
+        "degree_weighted": 0.6781659961384516,
+        "graph_structure": 0.692471781187016,
+        "exponential_mle": 9.31904503841039
+      },
+      "normalized_surprises": {
+        "uniform_random": 0.14390920386582715,
+        "valid_neighbors": 0.03620822418946375,
+        "degree_weighted": 0.03620822418946375,
+        "graph_structure": 0.03620822418946375,
+        "exponential_mle": 8.965184616352186
+      },
+      "baseline_comparisons": {
+        "uniform_random": {
+          "baseline_prob": 0.009708737954497337,
+          "baseline_entropy": 4.63472843170166,
+          "prob_ratio": 52.86538730500837
+        },
+        "valid_neighbors": {
+          "baseline_prob": 1e-08,
+          "baseline_entropy": 3.828641176223755,
+          "prob_ratio": 51325619.22073364
+        },
+        "degree_weighted": {
+          "baseline_prob": 1e-08,
+          "baseline_entropy": 3.819218397140503,
+          "prob_ratio": 51325619.22073364
+        },
+        "graph_structure": {
+          "baseline_prob": 1e-08,
+          "baseline_entropy": 3.7403171062469482,
+          "prob_ratio": 51325619.22073364
+        },
+        "exponential_mle": {
+          "baseline_prob": 0.9283033609390259,
+          "baseline_entropy": 0.277932345867157,
+          "prob_ratio": 0.5528970526274426
+        }
+      }
+    },
+    "top_5_predictions": [
+      {
+        "token": "91",
+        "probability": 0.5132561922073364,
+        "idx": 91
+      },
+      {
+        "token": "31",
+        "probability": 0.03679871931672096,
+        "idx": 31
+      },
+      {
+        "token": "45",
+        "probability": 0.028849922120571136,
+        "idx": 45
+      },
+      {
+        "token": "22",
+        "probability": 0.02649088390171528,
+        "idx": 22
+      },
+      {
+        "token": "98",
+        "probability": 0.024623805657029152,
+        "idx": 98
+      }
+    ],
+    "top_5_prob_sum": 0.6300195455551147,
+    "top_10_prob_sum": 0.7244207859039307,
+    "gini_coefficient": 0.809337854385376,
+    "effective_vocab_size": 15,
+    "prob_variance": 0.002558025997132063,
+    "prob_std": 0.05057693272829056,
+    "context_tokens": [
+      "28",
+      "56",
+      "56",
+      "97",
+      "90",
+      "4",
+      "66",
+      "73",
+      "98",
+      "91"
+    ],
+    "is_valid_edge": 
