@@ -44,8 +44,10 @@ def create_large_scale_rules(config):
     print(f"  Repeater nodes: {num_repeaters:,} ({rule_percentages['repeaters']}%)")
     print(f"  Regular nodes: {n - num_ascenders - num_evens - num_repeaters:,}")
     
-    # Create rules with random node assignment
-    ascender_nodes = np.random.choice(n, size=num_ascenders, replace=False)
+    # Create rules with strategic node assignment
+    # Ascender nodes must be in lower range to have higher nodes to connect to
+    max_ascender_node = int(n * 0.8)  # Limit ascenders to first 80% of nodes
+    ascender_nodes = np.random.choice(max_ascender_node, size=num_ascenders, replace=False)
     
     # Exclude ascender nodes from even rule selection
     remaining_nodes = np.setdiff1d(np.arange(n), ascender_nodes)
