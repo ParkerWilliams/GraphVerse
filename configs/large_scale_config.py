@@ -20,16 +20,16 @@ LARGE_SCALE_CONFIG = {
     # Rule configuration (percentage-based for large graphs)
     "use_percentages": True,
     "rule_percentages": {
-        "ascenders": 2.0,    # 2% = 200 nodes
-        "evens": 3.0,        # 3% = 300 nodes  
-        "repeaters": 1.5,    # 1.5% = 150 nodes
+        "ascenders": 10.0,    # 10% = 1000 nodes
+        "evens": 15.0,        # 15% = 1500 nodes  
+        "repeaters": 15.0,    # 15% = 1500 nodes (100 per k-value)
     },
     
     # Context window experiments
     "context_windows": [8, 16, 32, 64, 128, 256],
     
     # Repeater analysis - spans context boundaries
-    "repeater_k_values": [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512],
+    "repeater_k_values": [2, 4, 6, 8, 12, 16, 20, 24, 32, 48, 64, 96, 128, 192, 256, 320],
     
     # Memory management
     "trajectory_sampling": {

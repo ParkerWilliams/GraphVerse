@@ -21,16 +21,16 @@ MEDIUM_SCALE_CONFIG = {
     # Rule configuration (percentage-based)
     "use_percentages": True,
     "rule_percentages": {
-        "ascenders": 2.0,    # 2% = 20 nodes
-        "evens": 3.0,        # 3% = 30 nodes  
-        "repeaters": 1.5,    # 1.5% = 15 nodes
+        "ascenders": 10.0,    # 10% = 100 nodes
+        "evens": 15.0,        # 15% = 150 nodes  
+        "repeaters": 15.0,    # 15% = 150 nodes
     },
     
     # Context window experiments (smaller, focused range)
     "context_windows": [4, 6, 8, 12, 16, 24],
     
-    # Repeater analysis - focused on boundary crossing
-    "repeater_k_values": [2, 3, 4, 6, 8, 12, 16, 20, 24, 32],
+    # Repeater analysis - focused on boundary crossing  
+    "repeater_k_values": [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 28, 32],
     
     # Memory management (more generous sampling for medium scale)
     "trajectory_sampling": {
