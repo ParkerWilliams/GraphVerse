@@ -23,16 +23,18 @@ class LargeScaleEvaluator:
     batch processing, and checkpoint recovery.
     """
     
-    def __init__(self, experiment_folder: str, checkpoint_frequency: int = 100000):
+    def __init__(self, experiment_folder: str, checkpoint_frequency: int = 100000, experiment_config: Optional[Dict] = None):
         """
         Initialize large-scale evaluator.
         
         Args:
             experiment_folder: Folder to save results and checkpoints
             checkpoint_frequency: How often to save checkpoints (number of walks)
+            experiment_config: Configuration dictionary with distribution_analysis settings
         """
         self.experiment_folder = experiment_folder
         self.checkpoint_frequency = checkpoint_frequency
+        self.experiment_config = experiment_config
         
         # Create necessary directories
         os.makedirs(os.path.join(experiment_folder, "checkpoints"), exist_ok=True)
@@ -137,7 +139,8 @@ class LargeScaleEvaluator:
                 # Process this batch
                 batch_results = self.process_batch(
                     model, graph, vocab, batch_walks, min_start_length, max_start_length,
-                    rules, trajectory_sampling_config, batch_start, verbose
+                    rules, trajectory_sampling_config, batch_start, verbose,
+                    config=self.experiment_config
                 )
                 
                 # Store batch results
@@ -176,7 +179,8 @@ class LargeScaleEvaluator:
         rules,
         trajectory_sampling_config: Dict,
         batch_offset: int,
-        verbose: bool
+        verbose: bool,
+        config: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
         Process a single batch of walks.
@@ -209,7 +213,8 @@ class LargeScaleEvaluator:
             rules=rules,
             verbose=False,  # Suppress detailed output for batches
             track_token_details=True,
-            trajectory_sampling_config=trajectory_sampling_config
+            trajectory_sampling_config=trajectory_sampling_config,
+            config=config  # Pass distribution analysis config
         )
         
         # Adjust walk indices to account for batch offset
@@ -327,6 +332,20 @@ class LargeScaleEvaluator:
             "avg_steps_per_walk": 0
         }
         
+        # Initialize distribution metrics aggregation
+        distribution_aggregation = {
+            "kl_from_graph_mean": 0,
+            "kl_from_uniform_mean": 0,
+            "kl_from_exponential_mean": 0,
+            "structural_awareness_mean": 0,
+            "neighbor_prioritization_mean": 0,
+            "overall_quality_mean": 0,
+            "graph_structure_overlap_mean": 0,
+            "top1_agreement_with_graph_mean": 0,
+            "top5_agreement_with_graph_mean": 0,
+            "total_prediction_steps": 0
+        }
+        
         total_repeater_errors = 0
         total_ascender_errors = 0
         total_even_errors = 0
@@ -342,6 +361,21 @@ class LargeScaleEvaluator:
             total_even_errors += error_summary["even_error_rate"] * batch_walks
             total_broken_errors += error_summary["broken_graph_error_rate"] * batch_walks
             total_steps += error_summary["total_steps"]
+            
+            # Aggregate distribution metrics from batch token data
+            batch_file = batch["batch_file"]
+            if os.path.exists(batch_file):
+                try:
+                    with open(batch_file, "rb") as f:
+                        batch_data = pickle.load(f)
+                    
+                    token_data = batch_data.get("token_data", [])
+                    if token_data:
+                        self._aggregate_distribution_metrics_from_tokens(token_data, distribution_aggregation)
+                        
+                except Exception as e:
+                    if verbose:
+                        print(f"Warning: Could not load distribution metrics from {batch_file}: {e}")
         
         # Calculate overall error rates
         aggregated_errors["repeater_error_rate"] = total_repeater_errors / total_walks if total_walks > 0 else 0
@@ -351,6 +385,13 @@ class LargeScaleEvaluator:
         aggregated_errors["total_steps"] = total_steps
         aggregated_errors["avg_steps_per_walk"] = total_steps / total_walks if total_walks > 0 else 0
         
+        # Finalize distribution metrics
+        total_prediction_steps = distribution_aggregation["total_prediction_steps"]
+        if total_prediction_steps > 0:
+            for key in distribution_aggregation:
+                if key != "total_prediction_steps":
+                    distribution_aggregation[key] /= total_prediction_steps
+        
         # Create final trajectory metadata
         final_trajectories = EvaluationTrajectoryMetadata(self.aggregated_trajectories) if self.aggregated_trajectories else None
         
@@ -358,6 +399,7 @@ class LargeScaleEvaluator:
         final_results = {
             "total_walks": total_walks,
             "aggregated_error_summary": aggregated_errors,
+            "aggregated_distribution_metrics": distribution_aggregation,
             "batch_count": len(self.batch_results),
             "total_evaluation_time": time.time() - self.start_time if self.start_time else 0,
             "average_batch_rate": np.mean([batch["batch_rate"] for batch in self.batch_results]),
@@ -377,10 +419,64 @@ class LargeScaleEvaluator:
             print(f"Final results saved:")
             print(f"  Total walks: {total_walks:,}")
             print(f"  Repeater error rate: {aggregated_errors['repeater_error_rate']:.2%}")
+            print(f"  Average KL divergence from graph structure: {distribution_aggregation['kl_from_graph_mean']:.4f}")
+            print(f"  Average structural awareness: {distribution_aggregation['structural_awareness_mean']:.4f}")
+            print(f"  Average overall quality score: {distribution_aggregation['overall_quality_mean']:.4f}")
+            print(f"  Average top-1 agreement with graph: {distribution_aggregation['top1_agreement_with_graph_mean']:.4f}")
             print(f"  Average rate: {final_results['average_batch_rate']:.1f} walks/sec")
             print(f"  Full trajectories stored: {len(self.aggregated_trajectories):,}")
         
         return final_results
+    
+    def _aggregate_distribution_metrics_from_tokens(self, token_data, distribution_aggregation):
+        """
+        Aggregate distribution comparison metrics from token-level data.
+        
+        Args:
+            token_data: List of token dictionaries with core_distribution_comparison
+            distribution_aggregation: Dictionary to accumulate metrics into
+        """
+        for token in token_data:
+            if 'core_distribution_comparison' not in token:
+                continue
+                
+            core_comp = token['core_distribution_comparison']
+            
+            # Extract metrics safely
+            try:
+                dist_distances = core_comp.get('distribution_distances', {})
+                quality_scores = core_comp.get('prediction_quality_scores', {})
+                overlap_analysis = core_comp.get('distribution_overlap_analysis', {})
+                
+                # Accumulate core metrics
+                if 'graph_structure' in dist_distances:
+                    distribution_aggregation['kl_from_graph_mean'] += dist_distances['graph_structure'].get('kl_divergence', 0)
+                
+                if 'uniform_valid' in dist_distances:
+                    distribution_aggregation['kl_from_uniform_mean'] += dist_distances['uniform_valid'].get('kl_divergence', 0)
+                
+                if 'exponential_fitted' in dist_distances:
+                    distribution_aggregation['kl_from_exponential_mean'] += dist_distances['exponential_fitted'].get('kl_divergence', 0)
+                
+                # Quality scores
+                distribution_aggregation['structural_awareness_mean'] += quality_scores.get('structural_awareness', 0)
+                distribution_aggregation['neighbor_prioritization_mean'] += quality_scores.get('neighbor_prioritization', 0)
+                distribution_aggregation['overall_quality_mean'] += quality_scores.get('overall_quality', 0)
+                
+                # Overlap metrics
+                if 'graph_structure' in overlap_analysis:
+                    graph_overlap = overlap_analysis['graph_structure']
+                    distribution_aggregation['graph_structure_overlap_mean'] += graph_overlap.get('overlap_coefficient', 0)
+                    
+                    top_k_agreement = graph_overlap.get('agreement_on_top_k', {})
+                    distribution_aggregation['top1_agreement_with_graph_mean'] += top_k_agreement.get('top_1', 0)
+                    distribution_aggregation['top5_agreement_with_graph_mean'] += top_k_agreement.get('top_5', 0)
+                
+                distribution_aggregation['total_prediction_steps'] += 1
+                
+            except (KeyError, TypeError) as e:
+                # Skip tokens with malformed distribution comparison data
+                continue
 
 
 def run_large_scale_context_experiment(

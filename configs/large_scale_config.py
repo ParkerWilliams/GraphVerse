@@ -80,6 +80,24 @@ LARGE_SCALE_CONFIG = {
         "baseline_comparisons": True,
         "phase_transitions": True,
         "statistical_significance": True,
+    },
+    
+    # Distribution comparison configuration
+    "distribution_analysis": {
+        "enabled": True,
+        "baseline_distributions": ["graph_structure", "uniform_valid", "exponential_fitted", "uniform_full"],
+        "distance_metrics": ["kl_divergence", "js_divergence", "ks_distance", "l1_distance", "l2_distance", "cosine_similarity"],
+        "store_full_comparisons": "sampled",  # "all", "sampled", "none"
+        "quality_assessment": True,
+        "overlap_analysis": True,
+        "progressive_tracking": True,
+        "visualization": {
+            "enabled": True,
+            "generate_dashboards": True,
+            "generate_summary_plots": True,
+            "plot_format": "png",
+            "plot_dpi": 150
+        }
     }
 }
 

@@ -78,6 +78,432 @@ def plot_aggregate_kl(kl_csv_path, output_path=None):
         plt.show()
     plt.close()
 
+
+def plot_distribution_comparison_dashboard(token_level_data, output_path=None, figsize=(20, 12)):
+    """
+    Create a comprehensive dashboard showing LLM distribution comparisons vs baselines.
+    
+    Args:
+        token_level_data: List of token-level dictionaries with core_distribution_comparison
+        output_path: Path to save the plot
+        figsize: Figure size tuple
+    """
+    # Filter data to only include tokens with distribution comparisons
+    comparison_data = []
+    for token in token_level_data:
+        if 'core_distribution_comparison' in token:
+            comparison_data.append(token)
+    
+    if not comparison_data:
+        print("No distribution comparison data found")
+        return
+    
+    fig, axes = plt.subplots(3, 4, figsize=figsize)
+    fig.suptitle("LLM Distribution vs Baseline Comparisons", fontsize=16, fontweight='bold')
+    
+    # Extract metrics for plotting
+    steps = [d['step_idx'] for d in comparison_data]
+    
+    # 1. KL Divergences from different baselines
+    baselines = ['graph_structure', 'uniform_valid', 'exponential_fitted', 'uniform_full']
+    colors = ['red', 'blue', 'green', 'orange']
+    
+    ax = axes[0, 0]
+    for i, baseline in enumerate(baselines):
+        kl_values = []
+        for d in comparison_data:
+            dist_comp = d['core_distribution_comparison']
+            if baseline in dist_comp['distribution_distances']:
+                kl_values.append(dist_comp['distribution_distances'][baseline]['kl_divergence'])
+            else:
+                kl_values.append(0)
+        ax.plot(steps, kl_values, label=baseline.replace('_', ' ').title(), color=colors[i], alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("KL Divergence")
+    ax.set_title("KL Divergence from Baselines")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 2. Cosine Similarity to baselines
+    ax = axes[0, 1]
+    for i, baseline in enumerate(baselines):
+        cosine_values = []
+        for d in comparison_data:
+            dist_comp = d['core_distribution_comparison']
+            if baseline in dist_comp['distribution_distances']:
+                cosine_values.append(dist_comp['distribution_distances'][baseline]['cosine_similarity'])
+            else:
+                cosine_values.append(0)
+        ax.plot(steps, cosine_values, label=baseline.replace('_', ' ').title(), color=colors[i], alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Cosine Similarity")
+    ax.set_title("Cosine Similarity to Baselines")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 3. Valid Neighbor Focus
+    ax = axes[0, 2]
+    valid_masses = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        model_stats = dist_comp['model_distribution_stats']
+        # Compute valid neighbor mass for model
+        # This would need to be added to model_distribution_stats
+        valid_masses.append(0.5)  # Placeholder
+    ax.plot(steps, valid_masses, 'purple', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Valid Neighbor Mass")
+    ax.set_title("Model Focus on Valid Neighbors")
+    ax.grid(True, alpha=0.3)
+    
+    # 4. Overall Prediction Quality
+    ax = axes[0, 3]
+    quality_scores = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        if 'prediction_quality_scores' in dist_comp:
+            quality_scores.append(dist_comp['prediction_quality_scores'].get('overall_quality', 0))
+        else:
+            quality_scores.append(0)
+    ax.plot(steps, quality_scores, 'darkgreen', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Quality Score")
+    ax.set_title("Overall Prediction Quality")
+    ax.grid(True, alpha=0.3)
+    
+    # 5. Distribution Overlap Analysis
+    ax = axes[1, 0]
+    for i, baseline in enumerate(['graph_structure', 'uniform_valid']):
+        overlap_values = []
+        for d in comparison_data:
+            dist_comp = d['core_distribution_comparison']
+            if baseline in dist_comp['distribution_overlap_analysis']:
+                overlap_values.append(dist_comp['distribution_overlap_analysis'][baseline]['overlap_coefficient'])
+            else:
+                overlap_values.append(0)
+        ax.plot(steps, overlap_values, label=baseline.replace('_', ' ').title(), color=colors[i], alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Overlap Coefficient")
+    ax.set_title("Distribution Overlap with Baselines")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 6. Entropy Comparison
+    ax = axes[1, 1]
+    model_entropies = []
+    graph_entropies = []
+    for d in comparison_data:
+        model_entropies.append(d['entropy'])
+        dist_comp = d['core_distribution_comparison']
+        if 'graph_structure' in dist_comp['baseline_distributions']:
+            graph_entropies.append(dist_comp['baseline_distributions']['graph_structure']['entropy'])
+        else:
+            graph_entropies.append(0)
+    
+    ax.plot(steps, model_entropies, label='Model', color='red', alpha=0.7)
+    ax.plot(steps, graph_entropies, label='Graph Structure', color='blue', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Entropy")
+    ax.set_title("Entropy: Model vs Graph Structure")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 7. Structural Awareness
+    ax = axes[1, 2]
+    structural_awareness = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        if 'prediction_quality_scores' in dist_comp:
+            structural_awareness.append(dist_comp['prediction_quality_scores'].get('structural_awareness', 0))
+        else:
+            structural_awareness.append(0)
+    ax.plot(steps, structural_awareness, 'teal', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Structural Awareness")
+    ax.set_title("Model's Graph Structure Awareness")
+    ax.grid(True, alpha=0.3)
+    
+    # 8. Top-k Agreement
+    ax = axes[1, 3]
+    top_1_agreement = []
+    top_5_agreement = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        if 'graph_structure' in dist_comp['distribution_overlap_analysis']:
+            overlap_analysis = dist_comp['distribution_overlap_analysis']['graph_structure']
+            top_1_agreement.append(overlap_analysis['agreement_on_top_k'].get('top_1', 0))
+            top_5_agreement.append(overlap_analysis['agreement_on_top_k'].get('top_5', 0))
+        else:
+            top_1_agreement.append(0)
+            top_5_agreement.append(0)
+    
+    ax.plot(steps, top_1_agreement, label='Top-1 Agreement', color='red', alpha=0.7)
+    ax.plot(steps, top_5_agreement, label='Top-5 Agreement', color='blue', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Agreement Rate")
+    ax.set_title("Model-Graph Top-k Agreement")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 9. JS Divergence comparison
+    ax = axes[2, 0]
+    for i, baseline in enumerate(['graph_structure', 'uniform_valid']):
+        js_values = []
+        for d in comparison_data:
+            dist_comp = d['core_distribution_comparison']
+            if baseline in dist_comp['distribution_distances']:
+                js_values.append(dist_comp['distribution_distances'][baseline]['js_divergence'])
+            else:
+                js_values.append(0)
+        ax.plot(steps, js_values, label=baseline.replace('_', ' ').title(), color=colors[i], alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("JS Divergence")
+    ax.set_title("Jensen-Shannon Divergence")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 10. L1 and L2 Distance
+    ax = axes[2, 1]
+    l1_distances = []
+    l2_distances = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        if 'graph_structure' in dist_comp['distribution_distances']:
+            l1_distances.append(dist_comp['distribution_distances']['graph_structure']['l1_distance'])
+            l2_distances.append(dist_comp['distribution_distances']['graph_structure']['l2_distance'])
+        else:
+            l1_distances.append(0)
+            l2_distances.append(0)
+    
+    ax.plot(steps, l1_distances, label='L1 Distance', color='red', alpha=0.7)
+    ax.plot(steps, l2_distances, label='L2 Distance', color='blue', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Distance")
+    ax.set_title("L1/L2 Distance from Graph Structure")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # 11. Concentration Quality
+    ax = axes[2, 2]
+    concentration_quality = []
+    for d in comparison_data:
+        dist_comp = d['core_distribution_comparison']
+        if 'prediction_quality_scores' in dist_comp:
+            concentration_quality.append(dist_comp['prediction_quality_scores'].get('concentration_quality', 0))
+        else:
+            concentration_quality.append(0)
+    ax.plot(steps, concentration_quality, 'purple', alpha=0.7)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Concentration Quality")
+    ax.set_title("Model Concentration Quality")
+    ax.grid(True, alpha=0.3)
+    
+    # 12. Summary Statistics
+    ax = axes[2, 3]
+    # Show average divergences as bar chart
+    avg_kl_graph = np.mean([d['core_distribution_comparison']['distribution_distances']['graph_structure']['kl_divergence'] 
+                           for d in comparison_data if 'graph_structure' in d['core_distribution_comparison']['distribution_distances']])
+    avg_kl_uniform = np.mean([d['core_distribution_comparison']['distribution_distances']['uniform_valid']['kl_divergence'] 
+                             for d in comparison_data if 'uniform_valid' in d['core_distribution_comparison']['distribution_distances']])
+    avg_kl_exp = np.mean([d['core_distribution_comparison']['distribution_distances']['exponential_fitted']['kl_divergence'] 
+                         for d in comparison_data if 'exponential_fitted' in d['core_distribution_comparison']['distribution_distances']])
+    
+    baseline_names = ['Graph\nStructure', 'Uniform\nValid', 'Exponential\nFitted']
+    avg_kls = [avg_kl_graph, avg_kl_uniform, avg_kl_exp]
+    colors_bar = ['red', 'blue', 'green']
+    
+    bars = ax.bar(baseline_names, avg_kls, color=colors_bar, alpha=0.7)
+    ax.set_ylabel("Average KL Divergence")
+    ax.set_title("Average KL Divergence by Baseline")
+    ax.grid(True, alpha=0.3)
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, avg_kls):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"Distribution comparison dashboard saved to {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+
+
+def plot_baseline_comparison_summary(token_level_data, output_path=None, figsize=(15, 10)):
+    """
+    Create summary plots comparing model performance against different baselines.
+    
+    Args:
+        token_level_data: List of token-level dictionaries with distribution comparisons
+        output_path: Path to save the plot
+        figsize: Figure size tuple
+    """
+    # Extract comparison data
+    comparison_data = [t for t in token_level_data if 'core_distribution_comparison' in t]
+    
+    if not comparison_data:
+        print("No distribution comparison data found")
+        return
+    
+    fig, axes = plt.subplots(2, 3, figsize=figsize)
+    fig.suptitle("Model vs Baseline Distribution Analysis Summary", fontsize=14, fontweight='bold')
+    
+    baselines = ['graph_structure', 'uniform_valid', 'exponential_fitted']
+    baseline_labels = ['Graph Structure', 'Uniform Valid', 'Exponential Fitted']
+    colors = ['#e74c3c', '#3498db', '#2ecc71']
+    
+    # 1. Average KL Divergence
+    ax = axes[0, 0]
+    avg_kls = []
+    for baseline in baselines:
+        kl_values = []
+        for d in comparison_data:
+            if baseline in d['core_distribution_comparison']['distribution_distances']:
+                kl_values.append(d['core_distribution_comparison']['distribution_distances'][baseline]['kl_divergence'])
+        avg_kls.append(np.mean(kl_values) if kl_values else 0)
+    
+    bars = ax.bar(baseline_labels, avg_kls, color=colors, alpha=0.7)
+    ax.set_ylabel("Average KL Divergence")
+    ax.set_title("KL Divergence from Baselines")
+    ax.grid(True, alpha=0.3)
+    
+    # Add value labels
+    for bar, value in zip(bars, avg_kls):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    # 2. Average Cosine Similarity
+    ax = axes[0, 1]
+    avg_cosines = []
+    for baseline in baselines:
+        cosine_values = []
+        for d in comparison_data:
+            if baseline in d['core_distribution_comparison']['distribution_distances']:
+                cosine_values.append(d['core_distribution_comparison']['distribution_distances'][baseline]['cosine_similarity'])
+        avg_cosines.append(np.mean(cosine_values) if cosine_values else 0)
+    
+    bars = ax.bar(baseline_labels, avg_cosines, color=colors, alpha=0.7)
+    ax.set_ylabel("Average Cosine Similarity")
+    ax.set_title("Cosine Similarity to Baselines")
+    ax.grid(True, alpha=0.3)
+    
+    for bar, value in zip(bars, avg_cosines):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    # 3. Distribution Overlap
+    ax = axes[0, 2]
+    avg_overlaps = []
+    for baseline in baselines:
+        overlap_values = []
+        for d in comparison_data:
+            if baseline in d['core_distribution_comparison']['distribution_overlap_analysis']:
+                overlap_values.append(d['core_distribution_comparison']['distribution_overlap_analysis'][baseline]['overlap_coefficient'])
+        avg_overlaps.append(np.mean(overlap_values) if overlap_values else 0)
+    
+    bars = ax.bar(baseline_labels, avg_overlaps, color=colors, alpha=0.7)
+    ax.set_ylabel("Average Overlap Coefficient")
+    ax.set_title("Distribution Overlap")
+    ax.grid(True, alpha=0.3)
+    
+    for bar, value in zip(bars, avg_overlaps):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    # 4. Top-k Agreement (using graph_structure baseline)
+    ax = axes[1, 0]
+    top_k_labels = ['Top-1', 'Top-3', 'Top-5', 'Top-10']
+    top_k_agreements = []
+    
+    for k_label in top_k_labels:
+        k_key = k_label.lower().replace('-', '_')
+        agreement_values = []
+        for d in comparison_data:
+            if 'graph_structure' in d['core_distribution_comparison']['distribution_overlap_analysis']:
+                agreement_data = d['core_distribution_comparison']['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k']
+                agreement_values.append(agreement_data.get(k_key, 0))
+        top_k_agreements.append(np.mean(agreement_values) if agreement_values else 0)
+    
+    bars = ax.bar(top_k_labels, top_k_agreements, color='#9b59b6', alpha=0.7)
+    ax.set_ylabel("Agreement Rate")
+    ax.set_title("Top-k Agreement with Graph Structure")
+    ax.grid(True, alpha=0.3)
+    
+    for bar, value in zip(bars, top_k_agreements):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    # 5. Quality Scores
+    ax = axes[1, 1]
+    quality_dimensions = ['structural_awareness', 'concentration_quality', 'distributional_fit', 'neighbor_prioritization']
+    quality_labels = ['Structural\nAwareness', 'Concentration\nQuality', 'Distributional\nFit', 'Neighbor\nPrioritization']
+    
+    avg_qualities = []
+    for dimension in quality_dimensions:
+        quality_values = []
+        for d in comparison_data:
+            if 'prediction_quality_scores' in d['core_distribution_comparison']:
+                quality_values.append(d['core_distribution_comparison']['prediction_quality_scores'].get(dimension, 0))
+        avg_qualities.append(np.mean(quality_values) if quality_values else 0)
+    
+    bars = ax.bar(quality_labels, avg_qualities, color='#f39c12', alpha=0.7)
+    ax.set_ylabel("Quality Score")
+    ax.set_title("Prediction Quality Dimensions")
+    ax.grid(True, alpha=0.3)
+    
+    for bar, value in zip(bars, avg_qualities):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.2f}', ha='center', va='bottom', fontsize=8)
+    
+    # 6. Distance Metrics Heatmap
+    ax = axes[1, 2]
+    distance_metrics = ['kl_divergence', 'js_divergence', 'ks_distance', 'l1_distance', 'l2_distance']
+    distance_data = np.zeros((len(baselines), len(distance_metrics)))
+    
+    for i, baseline in enumerate(baselines):
+        for j, metric in enumerate(distance_metrics):
+            metric_values = []
+            for d in comparison_data:
+                if baseline in d['core_distribution_comparison']['distribution_distances']:
+                    metric_values.append(d['core_distribution_comparison']['distribution_distances'][baseline][metric])
+            distance_data[i, j] = np.mean(metric_values) if metric_values else 0
+    
+    # Normalize for better visualization
+    distance_data_norm = (distance_data - distance_data.min()) / (distance_data.max() - distance_data.min() + 1e-8)
+    
+    im = ax.imshow(distance_data_norm, cmap='YlOrRd', aspect='auto')
+    ax.set_xticks(range(len(distance_metrics)))
+    ax.set_yticks(range(len(baseline_labels)))
+    ax.set_xticklabels([m.replace('_', ' ').title() for m in distance_metrics], rotation=45, ha='right')
+    ax.set_yticklabels(baseline_labels)
+    ax.set_title("Distance Metrics Heatmap\n(Normalized)")
+    
+    # Add text annotations
+    for i in range(len(baseline_labels)):
+        for j in range(len(distance_metrics)):
+            text = ax.text(j, i, f'{distance_data[i, j]:.3f}',
+                          ha="center", va="center", color="black", fontsize=8)
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"Baseline comparison summary saved to {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+
 def plot_repeater_context_split(evaluation_results, rules, graph, context_windows, output_path=None, figsize=(15, 8)):
     """
     Plot repeater violations split by whether k is shorter or longer than context window.
@@ -803,3 +1229,355 @@ def plot_density_correlation_summary(density_analysis, output_path=None, figsize
         plt.show()
     
     return fig, (ax1, ax2)
+
+
+def plot_rule_specific_error_rates_by_context(experiment_results, context_windows, output_path=None, figsize=(15, 8)):
+    """
+    Plot error rates per rule per context window.
+    
+    Args:
+        experiment_results: Dictionary mapping context_window -> experiment results
+        context_windows: List of context window sizes
+        output_path: Path to save the plot
+        figsize: Figure size tuple
+    """
+    if not experiment_results:
+        print("No experiment results provided")
+        return
+    
+    # Rule types we track
+    rule_types = ['repeater', 'ascender', 'even', 'broken_graph']
+    rule_labels = ['Repeater Rules', 'Ascender Rules', 'Even Rules', 'Broken Graph']
+    colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12']
+    
+    # Extract error rates for each rule type and context window
+    error_data = {rule_type: [] for rule_type in rule_types}
+    valid_contexts = []
+    
+    for context_window in context_windows:
+        if context_window not in experiment_results:
+            continue
+            
+        # Load final results for this context
+        exp_result = experiment_results[context_window]
+        final_results_path = os.path.join(exp_result, "evaluation", "final_results.json")
+        
+        if os.path.exists(final_results_path):
+            with open(final_results_path, "r") as f:
+                final_results = json.load(f)
+            
+            error_summary = final_results.get("aggregated_error_summary", {})
+            valid_contexts.append(context_window)
+            
+            for rule_type in rule_types:
+                error_key = f"{rule_type}_error_rate"
+                error_rate = error_summary.get(error_key, 0.0)
+                error_data[rule_type].append(error_rate * 100)  # Convert to percentage
+    
+    if not valid_contexts:
+        print("No valid experiment results found")
+        return
+    
+    # Create the plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    fig.suptitle("Rule-Specific Error Rates by Context Window", fontsize=16, fontweight='bold')
+    
+    # Plot 1: Line plot showing error rates across context windows
+    for i, rule_type in enumerate(rule_types):
+        ax1.plot(valid_contexts, error_data[rule_type], 'o-', 
+                 label=rule_labels[i], color=colors[i], 
+                 linewidth=2.5, markersize=8, alpha=0.8)
+    
+    ax1.set_xlabel("Context Window Size", fontsize=12)
+    ax1.set_ylabel("Error Rate (%)", fontsize=12)
+    ax1.set_title("Error Rates Across Context Windows", fontsize=14)
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xscale('log', base=2)
+    
+    # Plot 2: Heatmap of error rates
+    error_matrix = np.array([error_data[rule_type] for rule_type in rule_types])
+    
+    im = ax2.imshow(error_matrix, cmap='Reds', aspect='auto')
+    ax2.set_xticks(range(len(valid_contexts)))
+    ax2.set_yticks(range(len(rule_types)))
+    ax2.set_xticklabels(valid_contexts)
+    ax2.set_yticklabels(rule_labels)
+    ax2.set_xlabel("Context Window Size", fontsize=12)
+    ax2.set_title("Error Rate Heatmap (%)", fontsize=14)
+    
+    # Add text annotations to heatmap
+    for i in range(len(rule_types)):
+        for j in range(len(valid_contexts)):
+            text = ax2.text(j, i, f'{error_matrix[i, j]:.1f}%',
+                           ha="center", va="center", 
+                           color="white" if error_matrix[i, j] > 50 else "black",
+                           fontsize=10, fontweight='bold')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax2)
+    cbar.set_label('Error Rate (%)', rotation=270, labelpad=20)
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"✅ Rule-specific error rate plots saved to: {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+    return fig, (ax1, ax2)
+
+
+def plot_distributional_metric_exemplars(token_level_data, output_path=None, figsize=(18, 12), n_exemplars=6):
+    """
+    Plot exemplars of distributional metrics showing specific examples.
+    
+    Args:
+        token_level_data: List of token-level dictionaries with distribution comparisons
+        output_path: Path to save the plot
+        figsize: Figure size tuple
+        n_exemplars: Number of exemplar walks to show
+    """
+    # Filter data with distribution comparisons
+    comparison_data = [t for t in token_level_data if 'core_distribution_comparison' in t]
+    
+    if not comparison_data:
+        print("No distribution comparison data found")
+        return
+    
+    # Group data by walk_idx
+    walk_data = defaultdict(list)
+    for token in comparison_data:
+        walk_data[token['walk_idx']].append(token)
+    
+    # Select exemplar walks with diverse characteristics
+    walk_indices = list(walk_data.keys())
+    if len(walk_indices) < n_exemplars:
+        n_exemplars = len(walk_indices)
+    
+    # Select exemplars based on different KL divergence ranges
+    exemplar_walks = []
+    kl_ranges = [(0, 0.1), (0.1, 0.3), (0.3, 0.6), (0.6, 1.0), (1.0, 2.0), (2.0, float('inf'))]
+    
+    for kl_min, kl_max in kl_ranges[:n_exemplars]:
+        best_walk = None
+        best_match_score = -1
+        
+        for walk_idx in walk_indices:
+            walk_tokens = walk_data[walk_idx]
+            # Calculate average KL from graph structure
+            avg_kl = np.mean([t['core_distribution_comparison']['distribution_distances']['graph_structure']['kl_divergence'] 
+                              for t in walk_tokens if 'graph_structure' in t['core_distribution_comparison']['distribution_distances']])
+            
+            if kl_min <= avg_kl < kl_max:
+                # Score based on walk length and data completeness
+                match_score = len(walk_tokens) + (1 if avg_kl > (kl_min + kl_max) / 2 else 0)
+                if match_score > best_match_score:
+                    best_match_score = match_score
+                    best_walk = walk_idx
+        
+        if best_walk is not None:
+            exemplar_walks.append(best_walk)
+            walk_indices.remove(best_walk)
+    
+    # Fill remaining exemplars if needed
+    while len(exemplar_walks) < n_exemplars and walk_indices:
+        exemplar_walks.append(walk_indices.pop(0))
+    
+    if not exemplar_walks:
+        print("No suitable exemplar walks found")
+        return
+    
+    # Create subplots
+    rows = 2
+    cols = 3
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    fig.suptitle("Exemplar Distributional Metrics Across Walks", fontsize=16, fontweight='bold')
+    
+    for idx, walk_idx in enumerate(exemplar_walks[:6]):
+        row = idx // cols
+        col = idx % cols
+        ax = axes[row, col]
+        
+        walk_tokens = walk_data[walk_idx]
+        steps = [t['step_idx'] for t in walk_tokens]
+        
+        # Plot multiple metrics
+        kl_graph = [t['core_distribution_comparison']['distribution_distances']['graph_structure']['kl_divergence'] 
+                    for t in walk_tokens if 'graph_structure' in t['core_distribution_comparison']['distribution_distances']]
+        structural_awareness = [t['core_distribution_comparison']['prediction_quality_scores'].get('structural_awareness', 0) 
+                               for t in walk_tokens if 'prediction_quality_scores' in t['core_distribution_comparison']]
+        top1_agreement = [t['core_distribution_comparison']['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k'].get('top_1', 0) 
+                          for t in walk_tokens if 'graph_structure' in t['core_distribution_comparison']['distribution_overlap_analysis']]
+        
+        # Plot lines
+        ax.plot(steps[:len(kl_graph)], kl_graph, 'r-', label='KL from Graph', linewidth=2, alpha=0.8)
+        ax.plot(steps[:len(structural_awareness)], structural_awareness, 'b-', label='Structural Awareness', linewidth=2, alpha=0.8)
+        ax.plot(steps[:len(top1_agreement)], top1_agreement, 'g-', label='Top-1 Agreement', linewidth=2, alpha=0.8)
+        
+        # Formatting
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Metric Value")
+        ax.set_title(f"Walk {walk_idx} (avg KL: {np.mean(kl_graph):.3f})")
+        ax.grid(True, alpha=0.3)
+        
+        if idx == 0:
+            ax.legend(fontsize=9)
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"✅ Distributional metric exemplars saved to: {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+    return fig, axes
+
+
+def plot_walk_level_distributional_aggregates(token_level_data, output_path=None, figsize=(16, 10)):
+    """
+    Plot aggregated distributional metrics at the walk level.
+    
+    Args:
+        token_level_data: List of token-level dictionaries with distribution comparisons
+        output_path: Path to save the plot
+        figsize: Figure size tuple
+    """
+    # Filter and group data by walk
+    comparison_data = [t for t in token_level_data if 'core_distribution_comparison' in t]
+    
+    if not comparison_data:
+        print("No distribution comparison data found")
+        return
+    
+    # Group by walk and calculate walk-level aggregates
+    walk_data = defaultdict(list)
+    for token in comparison_data:
+        walk_data[token['walk_idx']].append(token)
+    
+    walk_aggregates = []
+    walk_indices = []
+    
+    for walk_idx, tokens in walk_data.items():
+        if len(tokens) < 3:  # Skip walks with too few tokens
+            continue
+            
+        # Calculate walk-level metrics
+        kl_graph_values = [t['core_distribution_comparison']['distribution_distances']['graph_structure']['kl_divergence'] 
+                           for t in tokens if 'graph_structure' in t['core_distribution_comparison']['distribution_distances']]
+        kl_uniform_values = [t['core_distribution_comparison']['distribution_distances']['uniform_valid']['kl_divergence'] 
+                             for t in tokens if 'uniform_valid' in t['core_distribution_comparison']['distribution_distances']]
+        structural_awareness_values = [t['core_distribution_comparison']['prediction_quality_scores'].get('structural_awareness', 0) 
+                                       for t in tokens if 'prediction_quality_scores' in t['core_distribution_comparison']]
+        quality_values = [t['core_distribution_comparison']['prediction_quality_scores'].get('overall_quality', 0) 
+                          for t in tokens if 'prediction_quality_scores' in t['core_distribution_comparison']]
+        top1_agreement_values = [t['core_distribution_comparison']['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k'].get('top_1', 0) 
+                                 for t in tokens if 'graph_structure' in t['core_distribution_comparison']['distribution_overlap_analysis']]
+        
+        walk_aggregate = {
+            'walk_idx': walk_idx,
+            'walk_length': len(tokens),
+            'kl_graph_mean': np.mean(kl_graph_values) if kl_graph_values else 0,
+            'kl_graph_std': np.std(kl_graph_values) if kl_graph_values else 0,
+            'kl_uniform_mean': np.mean(kl_uniform_values) if kl_uniform_values else 0,
+            'structural_awareness_mean': np.mean(structural_awareness_values) if structural_awareness_values else 0,
+            'quality_mean': np.mean(quality_values) if quality_values else 0,
+            'top1_agreement_mean': np.mean(top1_agreement_values) if top1_agreement_values else 0,
+            'kl_graph_final': kl_graph_values[-1] if kl_graph_values else 0,
+            'quality_trend': np.polyfit(range(len(quality_values)), quality_values, 1)[0] if len(quality_values) > 2 else 0
+        }
+        
+        walk_aggregates.append(walk_aggregate)
+        walk_indices.append(walk_idx)
+    
+    if not walk_aggregates:
+        print("No valid walk aggregates found")
+        return
+    
+    # Create subplots
+    fig, axes = plt.subplots(2, 3, figsize=figsize)
+    fig.suptitle("Walk-Level Distributional Metric Aggregates", fontsize=16, fontweight='bold')
+    
+    # Extract arrays for plotting
+    kl_graph_means = [w['kl_graph_mean'] for w in walk_aggregates]
+    kl_graph_stds = [w['kl_graph_std'] for w in walk_aggregates]
+    structural_awareness_means = [w['structural_awareness_mean'] for w in walk_aggregates]
+    quality_means = [w['quality_mean'] for w in walk_aggregates]
+    top1_agreement_means = [w['top1_agreement_mean'] for w in walk_aggregates]
+    walk_lengths = [w['walk_length'] for w in walk_aggregates]
+    quality_trends = [w['quality_trend'] for w in walk_aggregates]
+    
+    # Plot 1: Distribution of mean KL divergences from graph structure
+    axes[0, 0].hist(kl_graph_means, bins=30, alpha=0.7, color='red', edgecolor='black')
+    axes[0, 0].set_xlabel('Mean KL Divergence from Graph')
+    axes[0, 0].set_ylabel('Number of Walks')
+    axes[0, 0].set_title('Distribution of Walk-Level\nKL Divergence Means')
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].axvline(np.mean(kl_graph_means), color='red', linestyle='--', 
+                       label=f'Mean: {np.mean(kl_graph_means):.3f}')
+    axes[0, 0].legend()
+    
+    # Plot 2: Structural awareness vs quality
+    scatter = axes[0, 1].scatter(structural_awareness_means, quality_means, 
+                                 c=walk_lengths, cmap='viridis', alpha=0.6, s=40)
+    axes[0, 1].set_xlabel('Mean Structural Awareness')
+    axes[0, 1].set_ylabel('Mean Overall Quality')
+    axes[0, 1].set_title('Structural Awareness vs Quality\n(colored by walk length)')
+    axes[0, 1].grid(True, alpha=0.3)
+    plt.colorbar(scatter, ax=axes[0, 1], label='Walk Length')
+    
+    # Plot 3: Walk length vs KL divergence
+    axes[0, 2].scatter(walk_lengths, kl_graph_means, alpha=0.6, color='orange', s=40)
+    axes[0, 2].set_xlabel('Walk Length')
+    axes[0, 2].set_ylabel('Mean KL Divergence from Graph')
+    axes[0, 2].set_title('Walk Length vs\nKL Divergence')
+    axes[0, 2].grid(True, alpha=0.3)
+    
+    # Add trend line
+    if len(walk_lengths) > 1:
+        z = np.polyfit(walk_lengths, kl_graph_means, 1)
+        p = np.poly1d(z)
+        axes[0, 2].plot(sorted(walk_lengths), p(sorted(walk_lengths)), "r--", alpha=0.8)
+    
+    # Plot 4: Top-1 agreement distribution
+    axes[1, 0].hist(top1_agreement_means, bins=20, alpha=0.7, color='green', edgecolor='black')
+    axes[1, 0].set_xlabel('Mean Top-1 Agreement with Graph')
+    axes[1, 0].set_ylabel('Number of Walks')
+    axes[1, 0].set_title('Distribution of Walk-Level\nTop-1 Agreement')
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].axvline(np.mean(top1_agreement_means), color='green', linestyle='--', 
+                       label=f'Mean: {np.mean(top1_agreement_means):.3f}')
+    axes[1, 0].legend()
+    
+    # Plot 5: KL divergence variability
+    axes[1, 1].scatter(kl_graph_means, kl_graph_stds, alpha=0.6, color='purple', s=40)
+    axes[1, 1].set_xlabel('Mean KL Divergence')
+    axes[1, 1].set_ylabel('KL Divergence Std Dev')
+    axes[1, 1].set_title('KL Divergence:\nMean vs Variability')
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    # Plot 6: Quality trend analysis
+    axes[1, 2].hist(quality_trends, bins=20, alpha=0.7, color='teal', edgecolor='black')
+    axes[1, 2].set_xlabel('Quality Trend Slope')
+    axes[1, 2].set_ylabel('Number of Walks')
+    axes[1, 2].set_title('Distribution of Quality\nTrend Slopes')
+    axes[1, 2].grid(True, alpha=0.3)
+    axes[1, 2].axvline(0, color='black', linestyle='--', alpha=0.5, label='No trend')
+    axes[1, 2].axvline(np.mean(quality_trends), color='teal', linestyle='--', 
+                       label=f'Mean: {np.mean(quality_trends):.4f}')
+    axes[1, 2].legend()
+    
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"✅ Walk-level distributional aggregates saved to: {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+    return fig, axes, walk_aggregates

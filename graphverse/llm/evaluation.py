@@ -20,6 +20,7 @@ def evaluate_model(
     verbose=False,
     track_token_details=True,
     trajectory_sampling_config=None,  # NEW: Configuration for trajectory sampling
+    config=None,  # NEW: General configuration for evaluation settings
 ):
     model.eval()
     
@@ -131,6 +132,14 @@ def evaluate_model(
                 'exponential_mle': fit_exponential_mle(prediction_probs)  # Already on correct device
             }
             
+            # Enhanced three-way comparison: LLM vs Graph vs Uniform vs Exponential
+            # Make this conditional based on configuration to save memory
+            core_comparison = None
+            if getattr(config, 'distribution_analysis', {}).get('enabled', True):
+                core_comparison = compute_core_distribution_comparison(
+                    prediction_probs, current_vertex, graph, vocab, device
+                )
+            
             # NEW: Compute all distribution distances (KL, KS, JS, Wasserstein)
             distances = compute_distribution_distances(prediction_probs, ref_distributions, vocab)
             
@@ -175,6 +184,7 @@ def evaluate_model(
                     'entropy': entropy_from_logits(logits[0, -1]),
                     'kl_divergences': kl_values,
                     'normalized_metrics': normalized_metrics,  # New normalized baseline comparisons
+                    'core_distribution_comparison': core_comparison if core_comparison else {},  # Enhanced 3-way distribution comparison
                     'top_5_predictions': get_top_k_predictions(logits[0, -1], vocab, k=5),
                     'top_5_prob_sum': torch.sum(top_k_probs[:5]).item(),
                     'top_10_prob_sum': torch.sum(top_k_probs).item(),
@@ -204,7 +214,19 @@ def evaluate_model(
                     'tail_mass': dist_analysis['tail_mass'],
                     'valid_neighbor_mass': dist_analysis['valid_neighbor_mass'],
                     'invalid_edge_mass': dist_analysis['invalid_edge_mass']
-                }
+                },
+                # Add core distribution comparison metrics to trajectory (if enabled)
+                'core_distribution_metrics': {
+                    'kl_from_graph': core_comparison['distribution_distances']['graph_structure']['kl_divergence'] if core_comparison else 0,
+                    'kl_from_uniform': core_comparison['distribution_distances']['uniform_valid']['kl_divergence'] if core_comparison else 0,
+                    'kl_from_exponential': core_comparison['distribution_distances']['exponential_fitted']['kl_divergence'] if core_comparison else 0,
+                    'structural_awareness': core_comparison['prediction_quality_scores']['structural_awareness'] if core_comparison else 0,
+                    'neighbor_prioritization': core_comparison['prediction_quality_scores']['neighbor_prioritization'] if core_comparison else 0,
+                    'overall_quality': core_comparison['prediction_quality_scores']['overall_quality'] if core_comparison else 0,
+                    'graph_structure_overlap': core_comparison['distribution_overlap_analysis']['graph_structure']['overlap_coefficient'] if core_comparison else 0,
+                    'top1_agreement_with_graph': core_comparison['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k']['top_1'] if core_comparison else 0,
+                    'top5_agreement_with_graph': core_comparison['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k']['top_5'] if core_comparison else 0
+                } if core_comparison else {}
             }
             walk_trajectory.add_step_metrics(counter, trajectory_metrics)
             
@@ -894,7 +916,8 @@ def analyze_progressive_difficulty(token_level_data):
             'avg_entropy': np.mean([d['entropy'] for d in step_data]),
             'avg_confidence': np.mean([d['prediction_confidence'] for d in step_data]),
             'avg_perplexity': np.mean([d['normalized_metrics']['model_perplexity'] for d in step_data]),
-            'skill_scores': {}
+            'skill_scores': {},
+            'distribution_metrics': {}
         }
         
         # Average skill scores for each baseline
@@ -902,6 +925,39 @@ def analyze_progressive_difficulty(token_level_data):
         for baseline in baseline_names:
             scores = [d['normalized_metrics']['skill_scores'][baseline] for d in step_data if not np.isinf(d['normalized_metrics']['skill_scores'][baseline])]
             step_metrics['skill_scores'][baseline] = np.mean(scores) if scores else 0.0
+        
+        # Add distribution comparison metrics if available
+        if 'core_distribution_comparison' in step_data[0]:
+            distribution_samples = [d for d in step_data if 'core_distribution_comparison' in d]
+            if distribution_samples:
+                step_metrics['distribution_metrics'] = {
+                    'avg_kl_from_graph': np.mean([
+                        d['core_distribution_comparison']['distribution_distances']['graph_structure']['kl_divergence']
+                        for d in distribution_samples
+                        if 'graph_structure' in d['core_distribution_comparison']['distribution_distances']
+                    ]),
+                    'avg_structural_awareness': np.mean([
+                        d['core_distribution_comparison']['prediction_quality_scores']['structural_awareness']
+                        for d in distribution_samples
+                        if 'prediction_quality_scores' in d['core_distribution_comparison']
+                    ]),
+                    'avg_neighbor_prioritization': np.mean([
+                        d['core_distribution_comparison']['prediction_quality_scores']['neighbor_prioritization']
+                        for d in distribution_samples
+                        if 'prediction_quality_scores' in d['core_distribution_comparison']
+                    ]),
+                    'avg_overall_quality': np.mean([
+                        d['core_distribution_comparison']['prediction_quality_scores']['overall_quality']
+                        for d in distribution_samples
+                        if 'prediction_quality_scores' in d['core_distribution_comparison']
+                    ]),
+                    'avg_top1_agreement_with_graph': np.mean([
+                        d['core_distribution_comparison']['distribution_overlap_analysis']['graph_structure']['agreement_on_top_k']['top_1']
+                        for d in distribution_samples
+                        if 'graph_structure' in d['core_distribution_comparison']['distribution_overlap_analysis']
+                        and 'agreement_on_top_k' in d['core_distribution_comparison']['distribution_overlap_analysis']['graph_structure']
+                    ])
+                }
         
         progressive_metrics['by_step_position'][step] = step_metrics
     
@@ -1376,6 +1432,287 @@ def get_large_scale_trajectory_config(num_walks, sample_rate=0.02, stratified=Tr
     }
     
     return config
+
+
+def compute_core_distribution_comparison(prediction_probs, current_vertex, graph, vocab, device):
+    """
+    Enhanced comparison of LLM predictions against the three core baseline distributions:
+    1. Graph structure distribution (the "true" edge probabilities)
+    2. Uniform distribution (over valid neighbors)
+    3. Exponential distribution (fitted to model predictions)
+    
+    Args:
+        prediction_probs: Model's prediction probabilities (tensor)
+        current_vertex: Current position in walk
+        graph: Graph object with edge probabilities
+        vocab: Vocabulary object
+        device: PyTorch device
+        
+    Returns:
+        Dictionary with detailed comparison metrics
+    """
+    vocab_size = len(vocab.token2idx)
+    
+    # Create the three core baseline distributions
+    baselines = {}
+    
+    # 1. Graph structure distribution (the "ground truth" for this graph)
+    baselines['graph_structure'] = graph_edge_distribution(current_vertex, graph, vocab).to(device)
+    
+    # 2. Uniform distribution over valid neighbors
+    baselines['uniform_valid'] = valid_neighbors_baseline(current_vertex, graph, vocab).to(device)
+    
+    # 3. Exponential distribution fitted to model's predictions
+    baselines['exponential_fitted'] = fit_exponential_mle(prediction_probs)
+    
+    # 4. Full uniform (over all vocab) for reference
+    baselines['uniform_full'] = uniform_random_baseline(vocab_size).to(device)
+    
+    comparison = {
+        'model_distribution_stats': analyze_model_distribution(prediction_probs),
+        'baseline_distributions': {},
+        'distribution_distances': {},
+        'relative_performance': {},
+        'distribution_overlap_analysis': {},
+        'prediction_quality_scores': {}
+    }
+    
+    # Analyze each baseline distribution
+    for baseline_name, baseline_dist in baselines.items():
+        comparison['baseline_distributions'][baseline_name] = {
+            'entropy': -torch.sum(baseline_dist * torch.log(baseline_dist + 1e-8)).item(),
+            'max_prob': torch.max(baseline_dist).item(),
+            'effective_support': torch.sum(baseline_dist > 0.001).item(),
+            'valid_neighbor_mass': compute_valid_neighbor_mass(baseline_dist, current_vertex, graph, vocab)
+        }
+        
+        # Compute distances between model and this baseline
+        comparison['distribution_distances'][baseline_name] = {
+            'kl_divergence': kl_divergence(torch.log(prediction_probs), baseline_dist),
+            'reverse_kl': kl_divergence(torch.log(baseline_dist + 1e-8), prediction_probs),
+            'js_divergence': compute_js_divergence(prediction_probs, baseline_dist),
+            'ks_distance': compute_ks_distance(prediction_probs, baseline_dist),
+            'l1_distance': torch.sum(torch.abs(prediction_probs - baseline_dist)).item(),
+            'l2_distance': torch.sqrt(torch.sum((prediction_probs - baseline_dist)**2)).item(),
+            'cosine_similarity': compute_cosine_similarity(prediction_probs, baseline_dist)
+        }
+        
+        # Analyze distribution overlap
+        comparison['distribution_overlap_analysis'][baseline_name] = analyze_distribution_overlap(
+            prediction_probs, baseline_dist, current_vertex, graph, vocab
+        )
+    
+    # Compute relative performance metrics
+    comparison['relative_performance'] = compute_relative_performance_metrics(
+        prediction_probs, baselines, current_vertex, graph, vocab
+    )
+    
+    # Prediction quality assessment
+    comparison['prediction_quality_scores'] = assess_prediction_quality(
+        prediction_probs, baselines, current_vertex, graph, vocab
+    )
+    
+    return comparison
+
+
+def analyze_model_distribution(prediction_probs):
+    """Analyze key characteristics of the model's prediction distribution."""
+    probs_np = prediction_probs.cpu().numpy()
+    sorted_probs = np.sort(probs_np)[::-1]
+    
+    return {
+        'entropy': float(-torch.sum(prediction_probs * torch.log(prediction_probs + 1e-8)).item()),
+        'max_probability': float(torch.max(prediction_probs).item()),
+        'top_5_mass': float(np.sum(sorted_probs[:5])),
+        'top_10_mass': float(np.sum(sorted_probs[:10])),
+        'effective_support_size': int(torch.sum(prediction_probs > 0.001).item()),
+        'gini_coefficient': compute_gini_coefficient(prediction_probs),
+        'concentration_ratio': float(sorted_probs[0] / (sorted_probs[1] + 1e-8)),  # How concentrated vs second choice
+        'tail_mass': float(np.sum(sorted_probs[10:])) if len(sorted_probs) > 10 else 0.0
+    }
+
+
+def compute_valid_neighbor_mass(distribution, current_vertex, graph, vocab):
+    """Compute what fraction of probability mass is on valid graph neighbors."""
+    if current_vertex >= graph.n:
+        return 0.0
+    
+    valid_neighbors = set(graph.get_neighbors(current_vertex))
+    valid_mass = 0.0
+    
+    for neighbor in valid_neighbors:
+        neighbor_token = str(neighbor)
+        if neighbor_token in vocab.token2idx:
+            neighbor_idx = vocab.token2idx[neighbor_token]
+            if neighbor_idx < len(distribution):
+                valid_mass += distribution[neighbor_idx].item()
+    
+    return float(valid_mass)
+
+
+def compute_cosine_similarity(dist1, dist2):
+    """Compute cosine similarity between two probability distributions."""
+    dot_product = torch.sum(dist1 * dist2)
+    norm1 = torch.sqrt(torch.sum(dist1 ** 2))
+    norm2 = torch.sqrt(torch.sum(dist2 ** 2))
+    
+    if norm1 > 0 and norm2 > 0:
+        return (dot_product / (norm1 * norm2)).item()
+    else:
+        return 0.0
+
+
+def analyze_distribution_overlap(model_probs, baseline_probs, current_vertex, graph, vocab):
+    """Analyze how much the model and baseline distributions overlap."""
+    analysis = {
+        'overlap_coefficient': 0.0,  # Sum of min(p_model, p_baseline)
+        'agreement_on_top_k': {},    # Do they agree on top k choices?
+        'valid_neighbor_agreement': 0.0,  # Agreement specifically on valid neighbors
+        'invalid_edge_disagreement': 0.0   # How much does model put on invalid edges vs baseline
+    }
+    
+    # Overlap coefficient (Bhattacharyya coefficient)
+    analysis['overlap_coefficient'] = torch.sum(torch.min(model_probs, baseline_probs)).item()
+    
+    # Top-k agreement
+    for k in [1, 3, 5, 10]:
+        model_top_k = torch.topk(model_probs, min(k, len(model_probs)))[1]
+        baseline_top_k = torch.topk(baseline_probs, min(k, len(baseline_probs)))[1]
+        
+        # Convert to sets and compute intersection
+        model_set = set(model_top_k.cpu().numpy())
+        baseline_set = set(baseline_top_k.cpu().numpy())
+        intersection_size = len(model_set.intersection(baseline_set))
+        
+        analysis['agreement_on_top_k'][f'top_{k}'] = intersection_size / k
+    
+    # Valid neighbor analysis
+    if current_vertex < graph.n:
+        valid_neighbors = set(graph.get_neighbors(current_vertex))
+        valid_model_mass = 0.0
+        valid_baseline_mass = 0.0
+        valid_overlap = 0.0
+        
+        invalid_model_mass = 0.0
+        invalid_baseline_mass = 0.0
+        
+        for idx, (m_prob, b_prob) in enumerate(zip(model_probs, baseline_probs)):
+            if idx < len(vocab.idx2token):
+                token = vocab.idx2token[idx]
+                if token.isdigit():
+                    node = int(token)
+                    if node in valid_neighbors:
+                        valid_model_mass += m_prob.item()
+                        valid_baseline_mass += b_prob.item()
+                        valid_overlap += min(m_prob.item(), b_prob.item())
+                    else:
+                        invalid_model_mass += m_prob.item()
+                        invalid_baseline_mass += b_prob.item()
+        
+        # Agreement on valid neighbors (how similar are they when restricted to valid neighbors)
+        if valid_model_mass > 0 and valid_baseline_mass > 0:
+            analysis['valid_neighbor_agreement'] = valid_overlap / min(valid_model_mass, valid_baseline_mass)
+        
+        # Disagreement on invalid edges
+        analysis['invalid_edge_disagreement'] = abs(invalid_model_mass - invalid_baseline_mass)
+    
+    return analysis
+
+
+def compute_relative_performance_metrics(model_probs, baselines, current_vertex, graph, vocab):
+    """Compute how model performs relative to each baseline."""
+    metrics = {}
+    
+    # For each baseline, compute relative metrics
+    for baseline_name, baseline_dist in baselines.items():
+        baseline_metrics = {
+            'entropy_improvement': 0.0,        # Lower entropy = more confident
+            'concentration_improvement': 0.0,   # Higher max prob = more decisive
+            'valid_neighbor_focus': 0.0,       # Better focus on valid neighbors
+            'information_efficiency': 0.0      # Information gain per bit
+        }
+        
+        # Entropy comparison
+        model_entropy = -torch.sum(model_probs * torch.log(model_probs + 1e-8)).item()
+        baseline_entropy = -torch.sum(baseline_dist * torch.log(baseline_dist + 1e-8)).item()
+        
+        if baseline_entropy > 0:
+            baseline_metrics['entropy_improvement'] = (baseline_entropy - model_entropy) / baseline_entropy
+        
+        # Concentration comparison
+        model_max = torch.max(model_probs).item()
+        baseline_max = torch.max(baseline_dist).item()
+        
+        if baseline_max > 0:
+            baseline_metrics['concentration_improvement'] = (model_max - baseline_max) / baseline_max
+        
+        # Valid neighbor focus
+        model_valid_mass = compute_valid_neighbor_mass(model_probs, current_vertex, graph, vocab)
+        baseline_valid_mass = compute_valid_neighbor_mass(baseline_dist, current_vertex, graph, vocab)
+        
+        if baseline_valid_mass > 0:
+            baseline_metrics['valid_neighbor_focus'] = (model_valid_mass - baseline_valid_mass) / baseline_valid_mass
+        
+        # Information efficiency (how much information per unit of entropy)
+        if model_entropy > 0:
+            baseline_metrics['information_efficiency'] = model_valid_mass / model_entropy
+        
+        metrics[baseline_name] = baseline_metrics
+    
+    return metrics
+
+
+def assess_prediction_quality(model_probs, baselines, current_vertex, graph, vocab):
+    """Assess overall prediction quality compared to baselines."""
+    quality_scores = {}
+    
+    # Quality dimensions to assess
+    dimensions = {
+        'structural_awareness': 0.0,    # How well does it respect graph structure
+        'concentration_quality': 0.0,   # Appropriate confidence level
+        'distributional_fit': 0.0,     # How well does it match expected distributions
+        'neighbor_prioritization': 0.0  # Focus on reachable nodes
+    }
+    
+    # Structural awareness: Compare with graph structure baseline
+    if 'graph_structure' in baselines:
+        graph_dist = baselines['graph_structure']
+        structural_similarity = compute_cosine_similarity(model_probs, graph_dist)
+        dimensions['structural_awareness'] = max(0.0, structural_similarity)
+    
+    # Concentration quality: Not too uniform, not too concentrated
+    model_entropy = -torch.sum(model_probs * torch.log(model_probs + 1e-8)).item()
+    model_max = torch.max(model_probs).item()
+    
+    # Good concentration: decisive but not overconfident
+    # Penalize both extreme uniformity and extreme concentration
+    uniformity_penalty = abs(model_entropy - np.log(len(model_probs))) / np.log(len(model_probs))
+    concentration_penalty = model_max if model_max > 0.8 else 0.0
+    dimensions['concentration_quality'] = 1.0 - 0.5 * (uniformity_penalty + concentration_penalty)
+    
+    # Distributional fit: How close to reasonable baselines
+    if 'uniform_valid' in baselines and 'exponential_fitted' in baselines:
+        uniform_sim = compute_cosine_similarity(model_probs, baselines['uniform_valid'])
+        exp_sim = compute_cosine_similarity(model_probs, baselines['exponential_fitted'])
+        dimensions['distributional_fit'] = max(uniform_sim, exp_sim)
+    
+    # Neighbor prioritization: Focus on valid graph neighbors
+    dimensions['neighbor_prioritization'] = compute_valid_neighbor_mass(model_probs, current_vertex, graph, vocab)
+    
+    # Compute overall quality score (weighted average)
+    weights = {
+        'structural_awareness': 0.4,
+        'concentration_quality': 0.2,
+        'distributional_fit': 0.2,
+        'neighbor_prioritization': 0.2
+    }
+    
+    overall_score = sum(dimensions[dim] * weights[dim] for dim in dimensions)
+    
+    quality_scores.update(dimensions)
+    quality_scores['overall_quality'] = overall_score
+    
+    return quality_scores
 
 
 def estimate_trajectory_memory_usage(num_walks, trajectory_config, vocab_size=1000, avg_steps_per_walk=20):
