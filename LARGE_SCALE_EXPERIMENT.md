@@ -39,13 +39,13 @@ python run_large_scale_analysis.py --dry-run
 python scripts/check_prerequisites.py
 
 # 2. Generate 10K vertex graph
-python scripts/generate_large_scale_graph.py --validate
+python scripts/generate_graph.py --validate
 
 # 3. Train models for all context windows (~4-8 hours)
-python scripts/train_large_scale_models.py --validate
+python scripts/train_models.py --validate
 
 # 4. Run large-scale experiment (~7 days)
-python scripts/run_large_scale_experiment.py
+python scripts/run_experiment.py
 
 # 5. Monitor progress
 python scripts/monitor_experiment.py large_scale_results --watch
@@ -187,7 +187,7 @@ large_scale_results/
 ### Analysis Scripts
 ```bash
 # Analyze completed results
-python scripts/run_large_scale_experiment.py --analyze --output large_scale_results
+python scripts/run_experiment.py --analyze --output large_scale_results
 
 # Generate plots and summaries
 python -c "
@@ -223,7 +223,7 @@ config = {'trajectory_sampling': {'sample_rate': 0.01}}
 "
 
 # Reduce batch size
-python scripts/run_large_scale_experiment.py --contexts 8 16  # Fewer contexts
+python scripts/run_experiment.py --contexts 8 16  # Fewer contexts
 ```
 
 **Storage Issues**
@@ -254,7 +254,7 @@ python run_large_scale_analysis.py --device cpu
 python run_large_scale_analysis.py --contexts 8 --quick-test
 
 # Check individual components
-python scripts/generate_large_scale_graph.py --validate
+python scripts/generate_graph.py --validate
 python scripts/train_large_scale_models.py --contexts 8 --validate
 python scripts/check_prerequisites.py
 ```
@@ -269,7 +269,7 @@ python run_large_scale_analysis.py
 python run_large_scale_analysis.py --skip-graph --force-models
 
 # Resume from checkpoint
-python scripts/run_large_scale_experiment.py --output large_scale_results
+python scripts/run_experiment.py --output large_scale_results
 ```
 
 ## 📞 Support

@@ -53,7 +53,8 @@ def save_walks_to_files(walks, output_dir, max_file_size=50*1024*1024, verbose=F
 def generate_random_graph(
     n, rules, num_walks=1000, min_walk_length=5, max_walk_length=20, 
     verbose=False, save_walks=False, output_dir="walks",
-    min_edge_density=0.4, edge_concentration=0.8  # Add edge weight parameters
+    min_edge_density=0.4,  # Minimum edge density for connectivity
+    exponential_scale=1.2  # Scale parameter for edge weight distribution
 ):
     if verbose:
         print("\n  Starting graph generation...")
@@ -65,8 +66,8 @@ def generate_random_graph(
     def print_density_stats(stage):
         if verbose:
             density = calculate_edge_density(G, verbose=False)
-            edges = np.sum(G.adjacency > 0)
-            max_edges = n * (n - 1)
+            edges = G.edge_count  # Use graph's edge counter
+            max_edges = (n * (n - 1)) // 2  # Max undirected edges
             print(f"\n{stage}:")
             print(f"  Edge density: {density:.3f}")
             print(f"  Edges: {edges}/{max_edges}")
@@ -102,31 +103,53 @@ def generate_random_graph(
     if verbose:
         print("\n  Setting up rule-specific paths...")
     
-    # 1. Handle repeater nodes to ensure valid paths exist
+    # 1. Handle repeater nodes to ensure valid loop paths exist
     repeater_iterator = tqdm(range(n), desc="Setting up repeater paths") if verbose else range(n)
     for node in repeater_iterator:
         if G.node_attributes[node]["rule"] == "repeater":
             repetitions = G.node_attributes[node]["repetitions"]
             
-            # Find valid intermediate nodes (not even-rule nodes)
+            # Find valid intermediate nodes (not even-rule or ascender nodes)
             valid_nodes = [
                 v for v in range(n)
                 if v != node
-                and G.node_attributes[v]["rule"] != "even"
+                and G.node_attributes[v]["rule"] not in ["even", "ascender"]
                 and v not in repeater_rule.member_nodes  # Avoid other repeaters
             ]
             
             if len(valid_nodes) < repetitions:
                 raise ValueError(f"Not enough valid nodes for repeater {node} with {repetitions} repetitions")
             
-            # Select nodes for the path
-            path_nodes = random.sample(valid_nodes, k=repetitions)
+            # Create multiple distinct k-cycles for this repeater (2-4 cycles)
+            num_cycles = random.randint(2, 4)
             
-            # Add edges to create the path
-            for path_node in path_nodes:
-                G.add_edge(node, path_node)
-                # Add return edge to allow getting back to repeater
-                G.add_edge(path_node, node)
+            for cycle_idx in range(num_cycles):
+                # Create a path: repeater -> intermediate1 -> intermediate2 -> ... -> back to repeater
+                # This ensures the repeater can loop back to itself in exactly k steps
+                path_nodes = random.sample(valid_nodes, k=repetitions)
+                
+                # Build the complete k-cycle path
+                k_cycle = [node] + path_nodes + [node]  # Full cycle including return
+                
+                # Create the loop: node -> path_nodes[0] -> path_nodes[1] -> ... -> node
+                current = node
+                for i, path_node in enumerate(path_nodes):
+                    G.add_edge(current, path_node)
+                    current = path_node
+                
+                # Close the loop: last path node back to repeater
+                G.add_edge(current, node)
+                
+                # Store this k-cycle path for efficient walk generation
+                G.add_repeater_cycle(node, k_cycle)
+                
+                if verbose and cycle_idx == 0:
+                    print(f"  Created {num_cycles} k-cycles for repeater {node} (k={repetitions})")
+                
+                # Remove used nodes to ensure cycles are distinct
+                for used_node in path_nodes:
+                    if used_node in valid_nodes:
+                        valid_nodes.remove(used_node)
     
     print_density_stats("After setting up repeater paths")
 
@@ -229,11 +252,19 @@ def generate_random_graph(
             print("Adding additional edges to meet minimum density...")
         
         # Calculate how many edges we need to add
+        # For undirected graphs represented with bidirectional edges:
+        # - We only count positive edges (one direction)
+        # - Max possible edges = n*(n-1)/2 for undirected graph
         num_nodes = G.n
-        max_possible_edges = num_nodes * (num_nodes - 1)
-        target_edges = int(min_edge_density * max_possible_edges)
-        current_edges = np.sum(G.adjacency > 0)
+        max_possible_edges = (num_nodes * (num_nodes - 1)) // 2  # Undirected graph
+        target_edges = int(min_edge_density * max_possible_edges) + (num_nodes // 10)  # Add adaptive buffer
+        current_edges = G.edge_count  # Use graph's edge counter
         edges_to_add = target_edges - current_edges
+        
+        if verbose:
+            print(f"Target edges: {target_edges} ({min_edge_density:.1%} of {max_possible_edges})")
+            print(f"Current edges: {current_edges}")
+            print(f"Edges to add: {edges_to_add}")
         
         # Add edges between non-rule nodes first
         non_rule_nodes = [n for n in range(n) if G.node_attributes[n]['rule'] == 'none']
@@ -244,7 +275,11 @@ def generate_random_graph(
         max_attempts = edges_to_add * 2  # Allow some failed attempts
         
         with tqdm(total=edges_to_add, desc="Adding density edges") as pbar:
-            while edges_added < edges_to_add and attempts < max_attempts:
+            # Phase 1: Respect rule constraints as much as possible
+            phase1_target = min(edges_to_add, int(edges_to_add * 0.2))  # Try 20% with rules first
+            phase1_attempts = phase1_target * 3
+            
+            while edges_added < phase1_target and attempts < phase1_attempts:
                 # Prefer non-rule nodes but occasionally use rule nodes
                 if random.random() < 0.8 and non_rule_nodes:
                     source = random.choice(non_rule_nodes)
@@ -276,6 +311,30 @@ def generate_random_graph(
                     pbar.update(1)
                 
                 attempts += 1
+            
+            # Phase 2: Add random edges to guarantee density target
+            if verbose and edges_added < edges_to_add:
+                remaining = edges_to_add - edges_added
+                print(f"\nPhase 2: Adding {remaining} random edges to reach density target...")
+            
+            # Pre-compute all possible undirected edges to avoid infinite loops
+            possible_edges = []
+            for i in range(n):
+                for j in range(i+1, n):  # Only consider i < j to avoid duplicates
+                    if G.adjacency[i, j] == 0:  # No edge exists yet
+                        possible_edges.append((i, j))
+            
+            # Randomly shuffle the possible edges
+            random.shuffle(possible_edges)
+            
+            # Add edges until we reach the target
+            edge_idx = 0
+            while edges_added < edges_to_add and edge_idx < len(possible_edges):
+                source, target = possible_edges[edge_idx]
+                G.add_edge(source, target)
+                edges_added += 1
+                pbar.update(1)
+                edge_idx += 1
         
         if verbose:
             final_density = calculate_edge_density(G, verbose=False)
@@ -294,15 +353,68 @@ def generate_random_graph(
 
     print_density_stats("After ensuring each node has an outgoing edge")
 
-    # Assign structured edge weights using Dirichlet distribution
-    # edge_concentration < 1.0 creates slight non-uniformity, = 1.0 is uniform
-    for node in tqdm(range(n), desc="Assigning edge probabilities"):
+    # Final connectivity check and repair if needed
+    if verbose:
+        print("\n  Verifying final connectivity...")
+    
+    if not G.is_connected():
+        if verbose:
+            print("  Graph not connected, adding connectivity edges...")
+        
+        # Find disconnected components and connect them
+        visited = set()
+        components = []
+        
+        for start_node in range(n):
+            if start_node not in visited:
+                # BFS to find this component
+                component = set()
+                queue = [start_node]
+                component.add(start_node)
+                visited.add(start_node)
+                
+                while queue:
+                    current = queue.pop(0)
+                    neighbors = G.get_neighbors(current)
+                    for neighbor in neighbors:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            component.add(neighbor)
+                            queue.append(neighbor)
+                
+                components.append(component)
+        
+        # Connect components by adding edges between them
+        for i in range(len(components) - 1):
+            node1 = random.choice(list(components[i]))
+            node2 = random.choice(list(components[i + 1]))
+            G.add_edge(node1, node2)
+            if verbose:
+                print(f"    Connected component {i} to {i+1} via edge {node1}-{node2}")
+    
+    if verbose and G.is_connected():
+        print("  ✓ Final connectivity verified")
+
+    print_density_stats("After connectivity verification")
+
+    # Assign exponential distribution weights for outbound transitions
+    # Each vertex gets exponentially distributed transition probabilities
+    # Use the passed exponential_scale parameter for experiment tracking
+    
+    for node in tqdm(range(n), desc="Assigning exponential edge probabilities"):
         neighbors = G.get_neighbors(node)
         if len(neighbors) > 0:
-            # Use Dirichlet distribution for slightly non-uniform but realistic weights
-            weights = np.random.dirichlet([edge_concentration] * len(neighbors))
-            for neighbor, weight in zip(neighbors, weights):
-                G.adjacency[node, neighbor] = weight
+            # Generate weights from exponential distribution
+            weights = np.random.exponential(scale=exponential_scale, size=len(neighbors))
+            
+            # Normalize to create valid probability distribution
+            total_weight = np.sum(weights)
+            probabilities = weights / total_weight
+            
+            for neighbor, prob in zip(neighbors, probabilities):
+                # Update both directions with same positive weight (undirected graph)
+                G.adjacency[node, neighbor] = prob
+                G.adjacency[neighbor, node] = prob
 
     # Calculate and report edge density statistics
     if verbose:
@@ -357,8 +469,9 @@ def calculate_edge_density(graph, verbose=False):
     if verbose:
         print("Calculating edge density...")
     num_nodes = graph.n
-    num_edges = np.sum(graph.adjacency > 0)
-    max_possible_edges = num_nodes * (num_nodes - 1)
+    # Use graph's edge counter
+    num_edges = graph.edge_count
+    max_possible_edges = (num_nodes * (num_nodes - 1)) // 2  # Undirected graph
     edge_density = num_edges / max_possible_edges
     if verbose:
         print(f"Edge density: {edge_density}")

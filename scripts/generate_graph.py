@@ -61,29 +61,55 @@ def create_large_scale_rules(config):
     ascender_rule = AscenderRule(ascender_nodes.tolist())
     even_rule = EvenRule(even_nodes.tolist())
     
-    # For repeater rule, assign k values that span context boundaries
+    # For repeater rule, assign k values using 4-bucket design for even distribution
     repeater_k_values = config["repeater_k_values"]
     repeater_dict = {}
     
-    # Distribute repeater nodes across different k values
-    nodes_per_k = max(1, num_repeaters // len(repeater_k_values))
-    
-    for i, k in enumerate(repeater_k_values):
-        start_idx = i * nodes_per_k
-        end_idx = min((i + 1) * nodes_per_k, num_repeaters)
+    if config.get("use_4_bucket_design", False):
+        # For 4-bucket design: distribute nodes evenly across unique k-values per context
+        # Each context has 4 buckets, so we want balanced representation
         
-        if start_idx < num_repeaters:
-            nodes_for_k = repeater_nodes[start_idx:end_idx]
-            for node in nodes_for_k:
+        # Simple even distribution across all k-values for now
+        # TODO: Could be enhanced to ensure even distribution within each context's buckets
+        nodes_per_k = max(1, num_repeaters // len(repeater_k_values))
+        
+        for i, k in enumerate(repeater_k_values):
+            start_idx = i * nodes_per_k
+            end_idx = min((i + 1) * nodes_per_k, num_repeaters)
+            
+            if start_idx < num_repeaters:
+                nodes_for_k = repeater_nodes[start_idx:end_idx]
+                for node in nodes_for_k:
+                    repeater_dict[node] = k
+        
+        # Assign remaining nodes evenly across k-values
+        assigned_nodes = len(repeater_dict)
+        if assigned_nodes < num_repeaters:
+            remaining_repeater_nodes = repeater_nodes[assigned_nodes:]
+            for i, node in enumerate(remaining_repeater_nodes):
+                k = repeater_k_values[i % len(repeater_k_values)]
                 repeater_dict[node] = k
-    
-    # Assign remaining nodes to random k values
-    assigned_nodes = len(repeater_dict)
-    if assigned_nodes < num_repeaters:
-        remaining_repeater_nodes = repeater_nodes[assigned_nodes:]
-        for node in remaining_repeater_nodes:
-            k = np.random.choice(repeater_k_values)
-            repeater_dict[node] = k
+                
+    else:
+        # Original distribution method
+        nodes_per_k = max(1, num_repeaters // len(repeater_k_values))
+        
+        for i, k in enumerate(repeater_k_values):
+            start_idx = i * nodes_per_k
+            end_idx = min((i + 1) * nodes_per_k, num_repeaters)
+            
+            if start_idx < num_repeaters:
+                nodes_for_k = repeater_nodes[start_idx:end_idx]
+                for node in nodes_for_k:
+                    repeater_dict[node] = k
+        
+        # Assign remaining nodes to random k values
+        assigned_nodes = len(repeater_dict)
+        if assigned_nodes < num_repeaters:
+            remaining_repeater_nodes = repeater_nodes[assigned_nodes:]
+            for node in remaining_repeater_nodes:
+                k = np.random.choice(repeater_k_values)
+                repeater_dict[node] = k
     
     repeater_rule = RepeaterRule(repeater_dict)
     
@@ -132,7 +158,7 @@ def generate_and_save_graph(config, output_path="large_scale_graph", verbose=Tru
         n=config["n"],
         rules=rules,
         min_edge_density=config["min_edge_density"],
-        edge_concentration=config["edge_concentration"],
+        exponential_scale=config.get("exponential_scale", 1.2),  # Use config parameter with fallback
         verbose=verbose,
         save_walks=False  # Don't generate walks during graph creation
     )
@@ -155,10 +181,15 @@ def generate_and_save_graph(config, output_path="large_scale_graph", verbose=Tru
         print(f"  {output_path}_attrs.json (node attributes)")
     
     # Save rule information separately for easy loading
+    # Convert numpy types to standard Python types for JSON serialization
+    repeater_dict = {str(k): int(v) for k, v in rules[2].members_nodes_dict.items()}
+    ascender_nodes = [int(x) for x in rules[0].member_nodes]
+    even_nodes = [int(x) for x in rules[1].member_nodes]
+    
     rule_info = {
-        "ascender_nodes": rules[0].member_nodes,
-        "even_nodes": rules[1].member_nodes,
-        "repeater_nodes_dict": rules[2].members_nodes_dict,
+        "ascender_nodes": ascender_nodes,
+        "even_nodes": even_nodes,
+        "repeater_nodes_dict": repeater_dict,
         "repeater_k_values": config["repeater_k_values"],
         "rule_percentages": config["rule_percentages"],
         "total_nodes": config["n"]
@@ -166,7 +197,7 @@ def generate_and_save_graph(config, output_path="large_scale_graph", verbose=Tru
     
     import json
     with open(f"{output_path}_rules.json", "w") as f:
-        json.dump(rule_info, f, indent=2)
+        json.dump(rule_info, f, indent=2, default=lambda x: int(x) if hasattr(x, 'item') else str(x))
     
     if verbose:
         print(f"  {output_path}_rules.json (rule assignments)")

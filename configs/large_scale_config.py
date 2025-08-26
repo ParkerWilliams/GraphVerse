@@ -12,6 +12,8 @@ LARGE_SCALE_CONFIG = {
     "n": 10000,  # 10K vertices
     "min_edge_density": 0.4,  # Target edge density
     "edge_concentration": 0.8,  # Dirichlet concentration for edge weights
+    "exponential_scale": 1.2,  # Scale parameter for edge weight distribution (trackable experiment parameter)
+    # Note: Edge weights use exponential distribution (scale=1.2) for less peaked but distinguishable probabilities
     
     # Walk generation
     "num_walks": 1000000,  # 1M walks total
@@ -45,6 +47,18 @@ LARGE_SCALE_CONFIG = {
         "walk_batch_size": 50000,    # Process 50K walks per batch
         "save_frequency": 10000,     # Save intermediate results every 10K walks
         "memory_limit_gb": 32,       # Memory limit for processing
+    },
+    
+    # Parallel processing configuration
+    "parallelization": {
+        "enabled": True,               # Enable parallel processing
+        "strategy": "auto",           # "auto", "cpu_only", "gpu_preferred", "sequential"
+        "cpu_workers": None,          # Number of CPU workers (None = auto-detect)
+        "gpu_batch_size": 1024,       # Batch size for GPU processing
+        "force_sequential_threshold": 100,  # Use sequential for small workloads
+        "memory_per_worker_gb": 2,    # Estimated memory per worker
+        "fallback_enabled": True,     # Fall back to sequential if parallel fails
+        "progress_update_interval": 1000,  # Progress updates every N walks
     },
     
     # Training parameters
@@ -217,17 +231,56 @@ def validate_large_scale_config(config: Dict[str, Any]) -> Dict[str, Any]:
         validation["warnings"].append(f"High memory requirement: {memory_est['total_estimated']:.1f}GB")
         validation["recommendations"].append("Consider reducing trajectory sampling rate")
     
-    # Runtime estimation (rough)
+    # Parallelization validation and performance estimation
+    parallelization = config.get("parallelization", {})
+    parallel_enabled = parallelization.get("enabled", False)
+    
+    # Runtime estimation with parallelization
     num_walks = config["num_walks"]
     num_contexts = len(config["context_windows"])
-    walks_per_second = 60  # Conservative estimate
+    
+    if parallel_enabled and parallelization.get("strategy") != "sequential":
+        # Detect hardware for realistic performance estimates
+        try:
+            from ..utils.hardware_detection import detect_hardware_capabilities
+            hw_info = detect_hardware_capabilities()
+            
+            # Estimate performance based on detected hardware
+            if hw_info.recommended_strategy.startswith("gpu_"):
+                walks_per_second = 500  # Optimistic GPU estimate
+                validation["recommendations"].append(f"GPU acceleration detected: {hw_info.gpu_type}")
+            elif hw_info.cpu_cores >= 8:
+                speedup_factor = min(hw_info.cpu_cores - 2, 8)  # Realistic speedup limit
+                walks_per_second = 60 * speedup_factor / 8  # Scale from baseline
+                validation["recommendations"].append(f"CPU parallel processing with {hw_info.cpu_cores} cores")
+            else:
+                walks_per_second = 80  # Modest improvement for smaller systems
+                
+        except ImportError:
+            walks_per_second = 120  # Assume modest parallel improvement
+            validation["recommendations"].append("Install parallel processing dependencies for better performance")
+    else:
+        walks_per_second = 60  # Conservative sequential estimate
+        if num_walks * num_contexts > 100000:
+            validation["recommendations"].append("Consider enabling parallel processing for large workloads")
     
     total_walks = num_walks * num_contexts
     validation["estimated_runtime_hours"] = total_walks / (walks_per_second * 3600)
     
     if validation["estimated_runtime_hours"] > 48:  # More than 2 days
         validation["warnings"].append(f"Long estimated runtime: {validation['estimated_runtime_hours']:.1f} hours")
-        validation["recommendations"].append("Consider parallel processing or reducing walk count")
+        if not parallel_enabled:
+            validation["recommendations"].append("Enable parallel processing to reduce runtime")
+    
+    # Parallelization-specific validations
+    if parallel_enabled:
+        cpu_workers = parallelization.get("cpu_workers")
+        if cpu_workers and cpu_workers > 16:
+            validation["warnings"].append(f"High worker count ({cpu_workers}) may cause overhead")
+            
+        memory_per_worker = parallelization.get("memory_per_worker_gb", 2)
+        if cpu_workers and cpu_workers * memory_per_worker > memory_est["total_estimated"]:
+            validation["warnings"].append("Worker memory requirements may exceed available memory")
     
     # Storage validation
     if not config["storage"]["compress_trajectories"]:

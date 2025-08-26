@@ -107,7 +107,7 @@ def generate_graph(output_path="large_scale_graph", force=False, verbose=True, m
         print(f"📊 Generating {scale_name} graph...")
     
     command = [
-        sys.executable, "scripts/generate_large_scale_graph.py",
+        sys.executable, "scripts/generate_graph.py",
         "--output", output_path,
         "--validate"
     ]
@@ -145,7 +145,7 @@ def train_models(graph_path="large_scale_graph", output_dir="large_scale_models"
             print("⏰ This may take several hours...")
     
     command = [
-        sys.executable, "scripts/train_large_scale_models.py",
+        sys.executable, "scripts/train_models.py",
         "--graph", graph_path,
         "--output", output_dir,
         "--validate"
@@ -175,7 +175,7 @@ def run_experiment(graph_path="large_scale_graph", models_dir="large_scale_model
         print("⏰ This will take ~7 days for the complete analysis...")
     
     command = [
-        sys.executable, "scripts/run_large_scale_experiment.py",
+        sys.executable, "scripts/run_experiment.py",
         "--graph", graph_path,
         "--models", models_dir,
         "--output", output_dir,
@@ -418,7 +418,7 @@ EXAMPLE USAGE:
             print(f"  python scripts/monitor_experiment.py {args.results_dir} --watch")
             
             print(f"\n📈 Analyze results:")
-            print(f"  python scripts/run_large_scale_experiment.py --analyze --output {args.results_dir}")
+            print(f"  python scripts/run_experiment.py --analyze --output {args.results_dir}")
             
             if not args.quick_test:
                 print(f"\n🔬 Research Impact:")

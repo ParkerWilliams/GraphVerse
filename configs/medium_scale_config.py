@@ -13,6 +13,8 @@ MEDIUM_SCALE_CONFIG = {
     "n": 1000,  # 1K vertices (vs 10K large-scale)
     "min_edge_density": 0.4,  # Target edge density
     "edge_concentration": 0.8,  # Dirichlet concentration for edge weights
+    "exponential_scale": 1.2,  # Scale parameter for edge weight distribution (trackable experiment parameter)
+    # Note: Edge weights use exponential distribution (scale=1.2) for less peaked but distinguishable probabilities
     
     # Walk generation
     "num_walks": 100000,  # 100K walks per context (vs 1M large-scale)
@@ -26,11 +28,17 @@ MEDIUM_SCALE_CONFIG = {
         "repeaters": 15.0,    # 15% = 150 nodes
     },
     
-    # Context window experiments (smaller, focused range)
-    "context_windows": [4, 6, 8, 12, 16, 24],
+    # Context window experiments  
+    "context_windows": [4, 8, 16, 32],
     
-    # Repeater analysis - focused on boundary crossing  
-    "repeater_k_values": [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 28, 32],
+    # Repeater analysis - 4-bucket boundary testing
+    # For context w: xs=0.6w, s=0.9w, l=1.1w, xl=1.4w
+    # Context 4: XS:2, S:4, L:4, XL:6 → [2, 4, 6]
+    # Context 8: XS:5, S:7, L:9, XL:11 → [5, 7, 9, 11] 
+    # Context 16: XS:10, S:14, L:18, XL:22 → [10, 14, 18, 22]
+    # Context 32: XS:19, S:29, L:35, XL:45 → [19, 29, 35, 45]
+    "repeater_k_values": [2, 4, 5, 6, 7, 9, 10, 11, 14, 18, 19, 22, 29, 35, 45],
+    "use_4_bucket_design": True,
     
     # Memory management (more generous sampling for medium scale)
     "trajectory_sampling": {
@@ -104,24 +112,48 @@ MEDIUM_SCALE_CONFIG = {
 
 def get_repeater_config_for_context(context_window: int) -> Dict[str, Any]:
     """
-    Generate repeater configuration that spans the context window boundary.
+    Generate repeater configuration using 4-bucket boundary testing design.
+    
+    Creates 4 evenly-sized buckets of repeater lengths:
+    - XS (Extra Small): k = 0.6w (well within context)
+    - S (Small): k = 0.9w (at context boundary) 
+    - L (Large): k = 1.1w (just beyond boundary)
+    - XL (Extra Large): k = 1.4w (well beyond boundary)
     
     Args:
         context_window: Size of context window
         
     Returns:
-        Dictionary with repeater min/max steps
+        Dictionary with 4-bucket repeater configuration
     """
-    # Create distribution around context window
-    # Learnable: k <= context_window
-    # Challenging: k > context_window
+    w = context_window
+    
+    # Calculate k-values for 4 buckets (rounded to integers, min 2)
+    k_xs = max(2, round(0.6 * w))  # Extra Small - well within context
+    k_s = max(2, round(0.9 * w))   # Small - at context boundary  
+    k_l = max(2, round(1.1 * w))   # Large - just beyond boundary
+    k_xl = max(2, round(1.4 * w))  # Extra Large - well beyond boundary
+    
+    # Ensure unique values
+    k_values = [k_xs, k_s, k_l, k_xl]
+    k_values = sorted(list(dict.fromkeys(k_values)))  # Remove duplicates, keep sorted
+    
+    # Categorize into learnable vs challenging
+    learnable_k = [k for k in k_values if k <= w]      # Should work
+    challenging_k = [k for k in k_values if k > w]     # Should fail
     
     return {
-        "repeater_min_steps": max(2, context_window // 4),
-        "repeater_max_steps": min(32, context_window * 1.5),  # Smaller max for medium scale
-        "learnable_range": list(range(2, context_window + 1)),
-        "challenging_range": list(range(context_window + 1, min(33, int(context_window * 1.5) + 1))),
-        "context_boundary": context_window
+        "k_xs": k_xs,
+        "k_s": k_s, 
+        "k_l": k_l,
+        "k_xl": k_xl,
+        "all_k_values": k_values,
+        "learnable_k_values": learnable_k,
+        "challenging_k_values": challenging_k,
+        "context_boundary": w,
+        "repeater_min_steps": min(k_values),
+        "repeater_max_steps": max(k_values),
+        "bucket_design": f"XS:{k_xs}, S:{k_s}, L:{k_l}, XL:{k_xl} (boundary at {w})"
     }
 
 def estimate_memory_requirements(config: Dict[str, Any]) -> Dict[str, float]:
@@ -139,8 +171,8 @@ def estimate_memory_requirements(config: Dict[str, Any]) -> Dict[str, float]:
     sampling_rate = config["trajectory_sampling"]["sample_rate"]
     
     estimates = {
-        # Graph adjacency matrix (much smaller for 1K vertices)
-        "graph_adjacency": (n * n * 4) / (1024**3),  # float32
+        # Graph  matrix (much smaller for 1K vertices)
+        "graph_": (n * n * 4) / (1024**3),  # float32
         
         # Training data (assuming avg walk length = 15 for smaller contexts)
         "training_data": (num_walks * 15 * 4) / (1024**3),  # int32
@@ -179,8 +211,8 @@ def create_context_experiment_plan(base_config: Dict[str, Any]) -> List[Dict[str
         exp_config = base_config.copy()
         exp_config["context_window_size"] = context_window
         exp_config["walk_lengths"] = {
-            "min_walk_length": max(3, context_window),
-            "max_walk_length": context_window * 2
+            "min_walk_length": context_window * 3,  # 3w minimum
+            "max_walk_length": context_window * 4   # 4w maximum  
         }
         
         # Add repeater configuration for this context window
@@ -301,11 +333,14 @@ if __name__ == "__main__":
     # Show experiment plan
     experiments = create_context_experiment_plan(MEDIUM_SCALE_CONFIG)
     print(f"\nPlanned Experiments: {len(experiments)} context windows")
+    print("4-Bucket Context Window Boundary Testing Design:")
     for exp in experiments:
         ctx = exp["context_window_size"]
-        learnable = len(exp["learnable_range"])
-        challenging = len(exp["challenging_range"])
-        print(f"  Context {ctx:>2}: {learnable:>2} learnable + {challenging:>2} challenging repeater lengths")
+        repeater_config = get_repeater_config_for_context(ctx)
+        walk_min = ctx * 3
+        walk_max = ctx * 4
+        print(f"  Context {ctx:>2}: {repeater_config['bucket_design']}, walks={walk_min}-{walk_max}")
+        print(f"    Expected: Learnable {repeater_config['learnable_k_values']} vs Challenging {repeater_config['challenging_k_values']}")
     
     # Compare to large scale
     print(f"\nMedium vs Large Scale Comparison:")

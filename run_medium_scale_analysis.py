@@ -121,7 +121,7 @@ def generate_graph(output_path="medium_graph_1000", force=False, verbose=True):
         print("📊 Generating medium-scale graph (1K vertices)...")
     
     command = [
-        sys.executable, "scripts/generate_large_scale_graph.py",
+        sys.executable, "scripts/generate_graph.py",
         "--output", output_path,
         "--medium-scale",
         "--validate"
@@ -154,7 +154,7 @@ def train_models(graph_path="medium_graph_1000", output_dir="medium_models",
         print(f"📋 Context windows: {contexts or MEDIUM_SCALE_CONFIG['context_windows']}")
     
     command = [
-        sys.executable, "scripts/train_large_scale_models.py",
+        sys.executable, "scripts/train_models.py",
         "--graph", graph_path,
         "--output", output_dir,
         "--medium-scale",
@@ -185,7 +185,7 @@ def run_experiment(graph_path="medium_graph_1000", models_dir="medium_models",
         print(f"📊 Total walks to process: {total_walks:,}")
     
     command = [
-        sys.executable, "scripts/run_large_scale_experiment.py",
+        sys.executable, "scripts/run_experiment.py",
         "--graph", graph_path,
         "--models", models_dir,
         "--output", output_dir,

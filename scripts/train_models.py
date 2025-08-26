@@ -15,12 +15,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from configs.large_scale_config import LARGE_SCALE_CONFIG
-from configs.medium_scale_config import MEDIUM_SCALE_CONFIG
+from configs.medium_scale_config import MEDIUM_SCALE_CONFIG, get_repeater_config_for_context
 from graphverse.graph.base import Graph
 from graphverse.graph.rules import RepeaterRule, AscenderRule, EvenRule
 from graphverse.data.preparation import prepare_training_data
 from graphverse.llm.training import train_model
-from graphverse.data.vocab import Vocabulary
+from graphverse.data.preparation import WalkVocabulary
 import torch
 
 
@@ -74,14 +74,14 @@ def prepare_context_training_data(graph, rules, context_window_size, config, ver
     if verbose:
         print(f"\nPreparing training data for context window {context_window_size}...")
     
-    # Calculate walk lengths based on context window
-    # Use slightly shorter walks for training to ensure they fit in context
-    max_walk_length = min(context_window_size - 2, config["walk_length_multiplier"] * context_window_size // 2)
-    min_walk_length = max(3, max_walk_length // 3)
+    # Calculate walk lengths for context boundary testing
+    # Walks must be 3-4x context window size to provide rich examples
+    # and ensure repeater patterns can complete even when started late in the walk
+    min_walk_length = context_window_size * 3  # 3w minimum
+    max_walk_length = context_window_size * 4  # 4w maximum
     
-    # Number of training walks - scale with context size
-    base_training_walks = 50000
-    training_walks = min(100000, base_training_walks + context_window_size * 100)
+    # Number of training walks - use 100K as specified
+    training_walks = 100000
     
     if verbose:
         print(f"  Walk length range: {min_walk_length}-{max_walk_length}")
@@ -89,7 +89,7 @@ def prepare_context_training_data(graph, rules, context_window_size, config, ver
     
     # Generate training data
     start_time = time.time()
-    training_data, vocab = prepare_training_data(
+    training_data, vocab, corpus_metadata = prepare_training_data(
         graph=graph,
         num_walks=training_walks,
         min_length=min_walk_length,
@@ -157,7 +157,6 @@ def train_context_model(training_data, vocab, context_window_size, config, outpu
         batch_size=training_config["batch_size"],
         num_epochs=epochs,
         learning_rate=learning_rate,
-        max_length=context_window_size,
         verbose=verbose
     )
     
@@ -180,8 +179,7 @@ def train_context_model(training_data, vocab, context_window_size, config, outpu
             'hidden_size': training_config["hidden_size"],
             'num_layers': training_config["num_layers"],
             'num_heads': training_config["num_heads"],
-            'dropout': training_config["dropout"],
-            'max_length': context_window_size
+            'dropout': training_config["dropout"]
         },
         'context_window_size': context_window_size,
         'training_time': training_time,
@@ -259,6 +257,13 @@ def train_all_models(graph_path="large_scale_graph", output_dir="large_scale_mod
             print(f"\n{'='*50}")
             print(f"TRAINING MODEL {i+1}/{len(context_windows)}: CONTEXT {context_size}")
             print(f"{'='*50}")
+            
+        # Get context-specific repeater configuration for 4-bucket boundary testing
+        repeater_config = get_repeater_config_for_context(context_size)
+        if verbose:
+            print(f"4-bucket boundary testing design:")
+            print(f"  {repeater_config['bucket_design']}")
+            print(f"  Expected: Learnable {repeater_config['learnable_k_values']} vs Challenging {repeater_config['challenging_k_values']}")
         
         try:
             # Prepare training data for this context size

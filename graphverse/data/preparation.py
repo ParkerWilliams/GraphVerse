@@ -64,17 +64,27 @@ def prepare_training_data(
     if verbose:
         print(f"\n  Generating a walk starting from each node ({graph.n} nodes)...")
     
-    per_node_walks = []
-    node_iterator = tqdm(range(graph.n), desc="Per-node walks", unit="node") if verbose else range(graph.n)
-    
-    for node in node_iterator:
-        walk = generate_valid_walk(
-            graph, node, min_length, max_length, rules, verbose=False
+    # Use parallel per-node walk generation for better performance
+    try:
+        from ..graph.parallel_walk import generate_per_node_walks_parallel
+        per_node_walks = generate_per_node_walks_parallel(
+            graph, min_length, max_length, rules, verbose=verbose
         )
-        if walk:
-            per_node_walks.append(walk)
-            if verbose:
-                node_iterator.set_postfix({"walks": len(per_node_walks), "success_rate": f"{len(per_node_walks)/(node+1):.1%}"})
+    except ImportError:
+        # Fallback to sequential implementation
+        if verbose:
+            print("  Using sequential per-node walk generation")
+        per_node_walks = []
+        node_iterator = tqdm(range(graph.n), desc="Per-node walks", unit="node") if verbose else range(graph.n)
+        
+        for node in node_iterator:
+            walk = generate_valid_walk(
+                graph, node, min_length, max_length, rules, verbose=False
+            )
+            if walk:
+                per_node_walks.append(walk)
+                if verbose:
+                    node_iterator.set_postfix({"walks": len(per_node_walks), "success_rate": f"{len(per_node_walks)/(node+1):.1%}"})
     
     # Combine all walks
     all_walks = walks + per_node_walks
@@ -163,16 +173,24 @@ def prepare_density_controlled_training_data(
         graph, num_walks, min_length, max_length, rules, verbose=verbose
     )
     
-    # Generate per-node walks (one from each node)
+    # Generate per-node walks (one from each node) using parallel processing
     if verbose:
         print(f"Generating walks starting from each node...")
-    per_node_walks = []
-    for node in range(graph.n):
-        walk = generate_valid_walk(
-            graph, node, min_length, max_length, rules, verbose=verbose
+    
+    try:
+        from ..graph.parallel_walk import generate_per_node_walks_parallel
+        per_node_walks = generate_per_node_walks_parallel(
+            graph, min_length, max_length, rules, verbose=verbose
         )
-        if walk:
-            per_node_walks.append(walk)
+    except ImportError:
+        # Fallback to sequential implementation
+        per_node_walks = []
+        for node in range(graph.n):
+            walk = generate_valid_walk(
+                graph, node, min_length, max_length, rules, verbose=False
+            )
+            if walk:
+                per_node_walks.append(walk)
     
     # Generate additional walks for specific repeater nodes if requested
     density_walks = []
