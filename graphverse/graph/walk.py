@@ -1,4 +1,5 @@
 import random
+import numpy as np
 from .rules import Rule
 from typing import List, Optional
 
@@ -17,18 +18,100 @@ def check_rule_compliance(walk, graph, rules, verbose=False):
         print(f"Rule compliance check completed for walk: {walk}")
     return True
 
+def has_incomplete_repeaters(walk, rules):
+    """
+    Check if walk has incomplete repeater cycles that need extension.
+    
+    Args:
+        walk: Current walk
+        rules: List of rule objects
+        
+    Returns:
+        True if walk has incomplete repeater cycles, False otherwise
+    """
+    for rule in rules:
+        if hasattr(rule, 'is_repeater_rule') and rule.is_repeater_rule:
+            for repeater_node, k_value in rule.members_nodes_dict.items():
+                if repeater_node in walk:
+                    positions = [i for i, x in enumerate(walk) if x == repeater_node]
+                    
+                    # If repeater appears only once, cycle is incomplete
+                    if len(positions) == 1:
+                        return True
+                    
+                    # Check if the last cycle is complete
+                    if len(positions) >= 2:
+                        last_pos = positions[-1]
+                        second_last_pos = positions[-2]
+                        nodes_between = last_pos - second_last_pos - 1
+                        
+                        # If last cycle doesn't have exactly k nodes between, it's incomplete
+                        if nodes_between != k_value:
+                            return True
+    
+    return False
+
+
 def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_attempts=10, verbose=False):
     if verbose:
         print(f"Generating valid walk starting from vertex {start_vertex} with rules: {[rule.__class__.__name__ for rule in rules]}")
     target_length = random.randint(min_length, max_length)
     walk = [start_vertex]
     attempts = 0
+    extension_attempts = 0
+    max_extension_attempts = 20  # Prevent infinite loops
+    
+    # Check if we're starting from a repeater - if so, immediately complete its cycle
+    for rule in rules:
+        if hasattr(rule, 'is_repeater_rule') and rule.is_repeater_rule:
+            if start_vertex in rule.members_nodes_dict:
+                k_value = rule.members_nodes_dict[start_vertex]
+                if verbose:
+                    print(f"Starting from repeater {start_vertex} (k={k_value}), completing cycle immediately")
+                
+                # Get ascender nodes to avoid
+                ascender_nodes = set()
+                for r in rules:
+                    if hasattr(r, 'is_ascender_rule') and r.is_ascender_rule:
+                        ascender_nodes.update(r.member_nodes)
+                
+                # Try to build initial cycle using existing edges
+                cycle_complete = False
+                cycle_attempts = 0
+                max_cycle_attempts = 10
+                
+                while not cycle_complete and cycle_attempts < max_cycle_attempts:
+                    temp_walk = [start_vertex]
+                    cycle_attempts += 1
+                    
+                    # Try to find k connected nodes that form a path back to start
+                    for i in range(k_value):
+                        current = temp_walk[-1]
+                        # Get valid neighbors (existing edges only)
+                        neighbors = [n for n in graph.get_neighbors(current) 
+                                   if n not in ascender_nodes and n not in temp_walk]
+                        
+                        if not neighbors:
+                            break  # Can't continue this path
+                        
+                        temp_walk.append(random.choice(neighbors))
+                    
+                    # Check if we can complete the cycle
+                    if len(temp_walk) == k_value + 1 and graph.has_edge(temp_walk[-1], start_vertex):
+                        walk = temp_walk + [start_vertex]
+                        cycle_complete = True
+                    
+                    if verbose:
+                        print(f"Initial cycle completed: {walk}")
 
+    # Main generation loop - with immediate completion, we don't need to check for incomplete repeaters
     while len(walk) < target_length:
         if verbose:
             print(f"Current walk: {walk}, Target length: {target_length}")
+        
+        # Only consider actual neighbors in the graph
         valid_neighbors = [
-            neighbor for neighbor in range(graph.n)
+            neighbor for neighbor in graph.get_neighbors(walk[-1])
             if check_rule_compliance(walk + [neighbor], graph, rules, verbose)
         ]
 
@@ -45,40 +128,77 @@ def generate_valid_walk(graph, start_vertex, min_length, max_length, rules, max_
             else:
                 if verbose:
                     print("Backtracking...")
-                walk.pop()
+                if len(walk) > 1:  # Don't pop the starting vertex
+                    walk.pop()
+                else:
+                    # Can't backtrack further, reset
+                    if verbose:
+                        print("Can't backtrack further, resetting")
+                    walk = [start_vertex]
+                    attempts = 0
         else:
-            current_node = walk[-1]
-            
-            # Check if current node is a repeater and we should follow its k-cycle
-            if (hasattr(graph, 'is_repeater_node') and graph.is_repeater_node(current_node)):
-                
-                # Get the k-cycle for this repeater
-                k_cycle = graph.get_repeater_cycle(current_node)
-                if k_cycle and len(k_cycle) > 2:  # Valid k-cycle exists
-                    
-                    # Get cycle nodes (excluding both start and end repeater since current repeater is already in walk)
-                    cycle_nodes = k_cycle[1:-1]  # Skip first and last node (both are the current repeater)
-                    
-                    # Check if we can fit the full cycle
-                    if len(walk) + len(cycle_nodes) <= target_length:
-                        # Follow the k-cycle - no validation needed since k-cycles are pre-built to be compliant
-                        for cycle_node in cycle_nodes:
-                            walk.append(cycle_node)
-                        if verbose:
-                            print(f"Followed k-cycle for repeater {current_node}: {cycle_nodes}")
-                        continue
-            
             # Default behavior: random selection from valid neighbors
             next_vertex = random.choice(valid_neighbors)
             if verbose:
                 print(f"Adding vertex {next_vertex} to the walk.")
 
-            if not graph.has_edge(walk[-1], next_vertex):
-                if verbose:
-                    print(f"Adding edge {walk[-1]} -> {next_vertex}")
-                graph.add_edge(walk[-1], next_vertex)
-
             walk.append(next_vertex)
+            
+            # Check if we just added a repeater node - if so, immediately complete its cycle
+            for rule in rules:
+                if hasattr(rule, 'is_repeater_rule') and rule.is_repeater_rule:
+                    if next_vertex in rule.members_nodes_dict:
+                        # This is a repeater! Get its k value
+                        k_value = rule.members_nodes_dict[next_vertex]
+                        
+                        # Check if this is the first visit to this repeater
+                        repeater_count = walk.count(next_vertex)
+                        
+                        if repeater_count == 1:  # First visit - immediately complete the cycle
+                            if verbose:
+                                print(f"  Encountered repeater {next_vertex} (k={k_value}), completing cycle immediately")
+                            
+                            # Find k valid intermediate nodes (no ascenders during the cycle)
+                            # Get ascender nodes to avoid
+                            ascender_nodes = set()
+                            for r in rules:
+                                if hasattr(r, 'is_ascender_rule') and r.is_ascender_rule:
+                                    ascender_nodes.update(r.member_nodes)
+                            
+                            # Try to build a k-cycle using existing edges
+                            cycle_complete = False
+                            temp_position = len(walk) - 1  # Position of repeater in walk
+                            
+                            # Try to find k connected nodes that form a path back to repeater
+                            for _ in range(5):  # Try a few times
+                                temp_walk = walk[:temp_position + 1]  # Copy walk up to repeater
+                                success = True
+                                
+                                for i in range(k_value):
+                                    current = temp_walk[-1]
+                                    # Get valid neighbors (existing edges only)
+                                    neighbors = [n for n in graph.get_neighbors(current) 
+                                               if n not in ascender_nodes and n != next_vertex and n not in temp_walk[temp_position:]]
+                                    
+                                    if not neighbors:
+                                        success = False
+                                        break
+                                    
+                                    temp_walk.append(random.choice(neighbors))
+                                
+                                # Check if we can complete the cycle
+                                if success and graph.has_edge(temp_walk[-1], next_vertex):
+                                    walk = temp_walk + [next_vertex]
+                                    cycle_complete = True
+                                    break
+                            
+                            if cycle_complete and verbose:
+                                print(f"    Completed cycle: {walk[-(k_value+2):]}")
+                            else:
+                                # Not enough nodes to complete cycle - this shouldn't happen in practice
+                                if verbose:
+                                    print(f"    WARNING: Not enough nodes to complete k={k_value} cycle")
+            
 
     if len(walk) >= min_length:
         if verbose:

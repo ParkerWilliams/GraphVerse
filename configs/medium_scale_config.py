@@ -29,16 +29,15 @@ MEDIUM_SCALE_CONFIG = {
     },
     
     # Context window experiments  
-    "context_windows": [4, 8, 16, 32],
+    "context_windows": [16],  # Single context window of 16
     
-    # Repeater analysis - 4-bucket boundary testing
-    # For context w: xs=0.6w, s=0.9w, l=1.1w, xl=1.4w
-    # Context 4: XS:2, S:4, L:4, XL:6 → [2, 4, 6]
-    # Context 8: XS:5, S:7, L:9, XL:11 → [5, 7, 9, 11] 
-    # Context 16: XS:10, S:14, L:18, XL:22 → [10, 14, 18, 22]
-    # Context 32: XS:19, S:29, L:35, XL:45 → [19, 29, 35, 45]
-    "repeater_k_values": [2, 4, 5, 6, 7, 9, 10, 11, 14, 18, 19, 22, 29, 35, 45],
-    "use_4_bucket_design": True,
+    # Repeater analysis - specific k-values for context 16
+    # k=8: 0.5 * context (well within)
+    # k=14: 0.875 * context (near boundary)
+    # k=18: 1.125 * context (just beyond)
+    # k=24: 1.5 * context (well beyond)
+    "repeater_k_values": [8, 14, 18, 24],
+    "use_4_bucket_design": False,  # Using custom k-values
     
     # Memory management (more generous sampling for medium scale)
     "trajectory_sampling": {
@@ -94,8 +93,12 @@ MEDIUM_SCALE_CONFIG = {
     # Distribution comparison configuration
     "distribution_analysis": {
         "enabled": True,
-        "baseline_distributions": ["graph_structure", "uniform_valid", "exponential_fitted", "uniform_full"],
-        "distance_metrics": ["kl_divergence", "js_divergence", "ks_distance", "l1_distance", "l2_distance", "cosine_similarity"],
+        "baseline_distributions": [
+            "graph_structure", "uniform_valid", "exponential_fitted", "uniform_full",
+            "rule_aware_oracle", "optimal_path_oracle", "repeater_oracle", "ascender_oracle", "even_oracle"
+        ],
+        "distance_metrics": ["kl_divergence", "js_divergence", "ks_distance", "l1_distance", "l2_distance", "cosine_similarity",
+                         "cross_entropy", "mutual_information", "information_gain"],
         "store_full_comparisons": "sampled",  # "all", "sampled", "none"
         "quality_assessment": True,
         "overlap_analysis": True,
@@ -107,36 +110,144 @@ MEDIUM_SCALE_CONFIG = {
             "plot_format": "png",
             "plot_dpi": 150
         }
+    },
+    
+    # Comprehensive entropy analysis configuration (medium-scale optimized)
+    "entropy_analysis": {
+        "enabled": True,
+        "comprehensive_metrics": True,  # Enable all entropy metrics
+        "entropy_metrics": [
+            "model_entropy",           # Basic model uncertainty
+            "cross_entropy",           # H(p, q) between model and baselines  
+            "mutual_information",      # I(X; Y) between predictions and targets
+            "conditional_entropy",     # H(Y|X) uncertainty given context
+            "entropy_rate",           # Rate of entropy change over time
+            "relative_entropy",       # KL divergence D(p||q)
+            "joint_entropy",          # H(X, Y) combined uncertainty
+            "information_gain"        # Reduction in uncertainty
+        ],
+        "temporal_analysis": {
+            "enabled": True,
+            "track_entropy_dynamics": True,
+            "window_size": 8,         # Smaller window for medium scale
+            "trend_analysis": True,   # Analyze entropy trends over walk
+            "phase_detection": True   # Detect entropy phase transitions
+        },
+        "correlation_analysis": {
+            "enabled": True,
+            "cross_metric_correlations": True,
+            "baseline_correlations": True,
+            "temporal_correlations": True,
+            "significance_testing": True
+        },
+        "visualization": {
+            "enabled": True,
+            "comprehensive_dashboard": True,     # 4x3 entropy dashboard
+            "correlation_heatmaps": True,        # Detailed correlation analysis
+            "information_gain_waterfall": True,  # IG comparative analysis
+            "temporal_entropy_plots": True,      # Entropy over time
+            "distribution_comparisons": True,    # Entropy distributions
+            "publication_quality": False,        # Standard quality for medium scale
+            "save_formats": ["png"],             # PNG only for faster iteration
+            "plot_dpi": 150                      # Standard DPI
+        },
+        "statistical_testing": {
+            "enabled": True,
+            "significance_tests": ["t_test", "mann_whitney"],  # Fewer tests for speed
+            "multiple_comparisons_correction": "bonferroni",
+            "confidence_level": 0.95,
+            "effect_size_calculation": True
+        }
+    },
+    
+    # Rule violation temporal analysis configuration (medium-scale optimized)
+    "violation_temporal_analysis": {
+        "enabled": True,
+        "lookback_window": 20,                    # Shorter window for faster analysis
+        "max_cases_per_rule": 8,                  # Fewer samples for speed
+        "min_violation_confidence": 0.6,          # Lower threshold for more cases
+        "include_near_violations": False,         # Disable for speed
+        
+        # Violation case selection strategy (streamlined)
+        "case_selection": {
+            "ensure_rule_type_diversity": True,   # Balance across repeater, ascender, even
+            "prefer_high_confidence": True,       # Prioritize confident violations
+            "context_window_diversity": False,    # Disable for speed
+            "entropy_pattern_diversity": False,   # Disable for speed
+            "minimum_entropy_variance": 0.05     # Lower threshold
+        },
+        
+        # Analysis focus areas (subset for speed)
+        "analysis_targets": {
+            "oracle_divergence_patterns": True,   # Core analysis
+            "entropy_collapse_dynamics": True,    # Core analysis
+            "context_boundary_effects": False,    # Disable for speed
+            "rule_specific_signatures": True,     # Core analysis
+            "predictive_indicators": False,       # Disable for speed
+            "baseline_comparison_evolution": True  # Core analysis
+        },
+        
+        # Visualization configuration (optimized)
+        "visualization": {
+            "entropy_timeline_plots": True,       # 3x3 comprehensive entropy over time
+            "individual_case_studies": True,      # 2x3 detailed individual violation cases
+            "violation_type_comparison": True,    # 2x2 comparative analysis across rule types
+            "context_boundary_analysis": False,   # Disable for speed
+            "publication_quality": False,         # Standard quality for speed
+            "save_formats": ["png"],              # PNG only for speed
+            "plot_dpi": 150,                      # Standard DPI
+            "figsize_timeline": [16, 10],         # Smaller plots
+            "figsize_case_studies": [18, 10],     # Smaller plots
+            "figsize_comparison": [14, 10]        # Smaller plots
+        },
+        
+        # Advanced analysis settings (minimal for speed)
+        "advanced_analysis": {
+            "entropy_rate_tracking": True,        # Core analysis
+            "baseline_correlation_analysis": False, # Disable for speed
+            "violation_prediction_modeling": False, # Disable for speed
+            "phase_transition_detection": False,   # Disable for speed
+            "information_cascade_analysis": False, # Disable for speed
+            "uncertainty_decomposition": False    # Disable for speed
+        }
     }
 }
 
 def get_repeater_config_for_context(context_window: int) -> Dict[str, Any]:
     """
-    Generate repeater configuration using 4-bucket boundary testing design.
+    Generate repeater configuration for specific context window.
     
-    Creates 4 evenly-sized buckets of repeater lengths:
-    - XS (Extra Small): k = 0.6w (well within context)
-    - S (Small): k = 0.9w (at context boundary) 
-    - L (Large): k = 1.1w (just beyond boundary)
-    - XL (Extra Large): k = 1.4w (well beyond boundary)
+    For context_window=16, uses specific k-values: [8, 14, 18, 24]
+    - k=8: 0.5 * context (well within)
+    - k=14: 0.875 * context (near boundary)
+    - k=18: 1.125 * context (just beyond)
+    - k=24: 1.5 * context (well beyond)
     
     Args:
         context_window: Size of context window
         
     Returns:
-        Dictionary with 4-bucket repeater configuration
+        Dictionary with repeater configuration
     """
     w = context_window
     
-    # Calculate k-values for 4 buckets (rounded to integers, min 2)
-    k_xs = max(2, round(0.6 * w))  # Extra Small - well within context
-    k_s = max(2, round(0.9 * w))   # Small - at context boundary  
-    k_l = max(2, round(1.1 * w))   # Large - just beyond boundary
-    k_xl = max(2, round(1.4 * w))  # Extra Large - well beyond boundary
-    
-    # Ensure unique values
-    k_values = [k_xs, k_s, k_l, k_xl]
-    k_values = sorted(list(dict.fromkeys(k_values)))  # Remove duplicates, keep sorted
+    # Use specific k-values for context window 16
+    if w == 16:
+        k_values = [8, 14, 18, 24]
+        k_xs = 8   # 0.5 * context (well within)
+        k_s = 14   # 0.875 * context (near boundary)
+        k_l = 18   # 1.125 * context (just beyond)
+        k_xl = 24  # 1.5 * context (well beyond)
+    else:
+        # Default 4-bucket design for other context windows
+        k_xs = max(2, round(0.6 * w))  # Extra Small - well within context
+        k_s = max(2, round(0.9 * w))   # Small - at context boundary  
+        k_l = max(2, round(1.1 * w))   # Large - just beyond boundary
+        k_xl = max(2, round(1.4 * w))  # Extra Large - well beyond boundary
+        
+        # Ensure unique values
+        k_values = [k_xs, k_s, k_l, k_xl]
+        k_values = sorted(list(dict.fromkeys(k_values)))  # Remove duplicates, keep sorted
     
     # Categorize into learnable vs challenging
     learnable_k = [k for k in k_values if k <= w]      # Should work
@@ -174,8 +285,8 @@ def estimate_memory_requirements(config: Dict[str, Any]) -> Dict[str, float]:
         # Graph  matrix (much smaller for 1K vertices)
         "graph_": (n * n * 4) / (1024**3),  # float32
         
-        # Training data (assuming avg walk length = 15 for smaller contexts)
-        "training_data": (num_walks * 15 * 4) / (1024**3),  # int32
+        # Training data (assuming avg walk length = 32 for context 16)
+        "training_data": (num_walks * 32 * 4) / (1024**3),  # int32
         
         # Full trajectory storage (sampled)
         "trajectory_full": (num_walks * sampling_rate * n * 8 * 4) / (1024**3),  # vocab_size * avg_steps * float32
@@ -211,8 +322,8 @@ def create_context_experiment_plan(base_config: Dict[str, Any]) -> List[Dict[str
         exp_config = base_config.copy()
         exp_config["context_window_size"] = context_window
         exp_config["walk_lengths"] = {
-            "min_walk_length": context_window * 3,  # 3w minimum
-            "max_walk_length": context_window * 4   # 4w maximum  
+            "min_walk_length": context_window * 2,  # 2x context window
+            "max_walk_length": context_window * 2   # 2x context window  
         }
         
         # Add repeater configuration for this context window

@@ -1,0 +1,18 @@
+{
+  "num_walks": 1000000,
+  "batch_size": 50000,
+  "min_start_length": 3,
+  "max_start_length": 8,
+  "trajectory_sampling": {
+    "enabled": true,
+    "sample_rate": 0.02,
+    "stratified": true,
+    "min_samples_per_outcome": 2500,
+    "store_full_distributions": true,
+    "memory_efficient": true,
+    "description": "Large-scale sampling: 2.0% of 1,000,000 walks = 20,000 full trajectories"
+  },
+  "experiment_start_time": "2025-08-27T17:23:25.239540",
+  "graph_size": 100,
+  "num_rules": 3
+}

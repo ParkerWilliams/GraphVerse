@@ -94,7 +94,12 @@ def train_model(
     
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss(ignore_index=vocab.token2idx["<PAD>"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+    
+    # Add learning rate scheduler for aggressive training
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=2
+    )
     
     # Training loop
     if verbose:
@@ -133,6 +138,10 @@ def train_model(
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
+            
+            # Gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             
             total_loss += loss.item()
@@ -146,11 +155,16 @@ def train_model(
         avg_epoch_loss = total_loss / len(dataloader)
         epoch_losses.append(avg_epoch_loss)
         
+        # Step the learning rate scheduler
+        scheduler.step(avg_epoch_loss)
+        
         if verbose:
             print(f"  Epoch {epoch+1} completed - Average loss: {avg_epoch_loss:.4f}")
             if epoch > 0:
                 loss_change = epoch_losses[-1] - epoch_losses[-2]
                 print(f"  Loss change: {loss_change:+.4f}")
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"  Current learning rate: {current_lr:.6f}")
             print()
     
     if verbose:

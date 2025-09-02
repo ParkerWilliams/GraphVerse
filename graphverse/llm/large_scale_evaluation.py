@@ -203,6 +203,10 @@ class LargeScaleEvaluator:
         batch_start_time = time.time()
         
         # Run evaluation on this batch
+        # Use fast mode for large graphs (>500 nodes) to avoid excessive computation
+        fast_mode = graph.n > 500
+        if fast_mode and batch_idx == 0:
+            print(f"  ⚡ Fast mode enabled (graph has {graph.n} nodes > 500)")
         evaluation_results, error_summary, kl_series, token_data, progressive_analysis, exemplars, trajectories = evaluate_model(
             model=model,
             graph=graph,
@@ -214,7 +218,8 @@ class LargeScaleEvaluator:
             verbose=False,  # Suppress detailed output for batches
             track_token_details=True,
             trajectory_sampling_config=trajectory_sampling_config,
-            config=config  # Pass distribution analysis config
+            config=config,  # Pass distribution analysis config
+            fast_mode=fast_mode  # Skip expensive computations for large graphs
         )
         
         # Adjust walk indices to account for batch offset

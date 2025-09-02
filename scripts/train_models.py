@@ -179,7 +179,8 @@ def train_context_model(training_data, vocab, context_window_size, config, outpu
             'hidden_size': training_config["hidden_size"],
             'num_layers': training_config["num_layers"],
             'num_heads': training_config["num_heads"],
-            'dropout': training_config["dropout"]
+            'dropout': training_config["dropout"],
+            'max_length': context_window_size
         },
         'context_window_size': context_window_size,
         'training_time': training_time,

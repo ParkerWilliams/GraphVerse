@@ -46,9 +46,13 @@ class WalkTransformer(nn.Module):
         # Create position indices
         positions = torch.arange(src.size(1), device=src.device).unsqueeze(0).expand(src.size(0), -1)
         
-        # Get embeddings and positional encodings
+        # Get embeddings
         embedded = self.embedding(src)
-        pos_encoding = self.pos_encoder(positions)
+        
+        # Handle positional encoding with clamping to prevent out-of-range errors
+        max_pos = self.pos_encoder.num_embeddings - 1
+        positions_clamped = torch.clamp(positions, max=max_pos)
+        pos_encoding = self.pos_encoder(positions_clamped)
         
         # Combine embeddings and positional encodings
         x = embedded + pos_encoding

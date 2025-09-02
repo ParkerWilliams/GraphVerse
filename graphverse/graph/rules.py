@@ -190,8 +190,23 @@ class RepeaterRule(Rule):
         for v, k in self.members_nodes_dict.items():
             if v in walk:
                 indices = [i for i, x in enumerate(walk) if x == v]
+                
+                # Single visits are OK during walk generation if:
+                # 1. At the very end (being added now)
+                # 2. At the very start (starting from repeater)
+                # Otherwise they indicate an incomplete cycle
+                if len(indices) == 1:
+                    # Single visit is OK if at start or end (walk generation in progress)
+                    if indices[0] == 0 or indices[0] == len(walk) - 1:
+                        continue  # OK - walk is being built
+                    # Single visit in the middle is invalid
+                    return False
+                
+                # Check consecutive pairs for correct spacing
                 for i in range(len(indices) - 1):
-                    if indices[i + 1] - indices[i] != k:
+                    # Check that exactly k nodes exist between repeater visits
+                    # Position distance should be k + 1 to allow k nodes between
+                    if indices[i + 1] - indices[i] != k + 1:
                         return False
         return True
 
@@ -203,7 +218,8 @@ class RepeaterRule(Rule):
             if v in walk:
                 indices = [i for i, x in enumerate(walk) if x == v]
                 for i in range(len(indices) - 1):
-                    if indices[i + 1] - indices[i] != k:
+                    # Check that exactly k nodes exist between repeater visits
+                    if indices[i + 1] - indices[i] != k + 1:
                         return indices[i + 1]
         return None
 
@@ -220,7 +236,8 @@ def check_rule_compliance(walk, ascenders, evens, repeaters):
         if v in repeaters:
             indices = [i for i, x in enumerate(walk) if x == v]
             for j in range(len(indices) - 1):
-                if indices[j + 1] - indices[j] != repeaters[v]:
+                # Check that exactly k nodes exist between repeater visits
+                if indices[j + 1] - indices[j] != repeaters[v] + 1:
                     return False
     return True
 

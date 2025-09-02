@@ -62,13 +62,21 @@ def load_model_and_vocab(model_path, vocab_path, device='cpu'):
     
     # Recreate model architecture
     from graphverse.llm.model import WalkTransformer
+    # Get max_seq_len from model_config or infer from positional encoder shape
+    if 'max_length' in model_config:
+        max_seq_len = model_config['max_length']
+    else:
+        # Fallback: infer from positional encoder weight shape
+        pos_encoder_shape = checkpoint['model_state_dict']['pos_encoder.weight'].shape
+        max_seq_len = pos_encoder_shape[0]
+    
     model = WalkTransformer(
         vocab_size=model_config['vocab_size'],
         hidden_size=model_config['hidden_size'],
         num_layers=model_config['num_layers'],
         num_heads=model_config['num_heads'],
         dropout=model_config['dropout'],
-        max_length=model_config['max_length']
+        max_seq_len=max_seq_len
     )
     
     # Load trained weights
@@ -80,7 +88,7 @@ def load_model_and_vocab(model_path, vocab_path, device='cpu'):
     with open(vocab_path, "rb") as f:
         vocab = pickle.load(f)
     
-    print(f"Model loaded: context={model_config['max_length']}, vocab={len(vocab.token2idx)}")
+    print(f"Model loaded: context={max_seq_len}, vocab={len(vocab.token2idx)}")
     
     return model, vocab, model_config
 

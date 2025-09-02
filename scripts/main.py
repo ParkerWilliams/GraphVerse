@@ -10,6 +10,7 @@ from graphverse.graph.rules import define_all_rules, define_all_rules_by_percent
 from graphverse.data.preparation import prepare_training_data
 from graphverse.analysis.metadata import GraphMetadata, ExperimentMetadata
 from graphverse.llm.training import train_model
+from graphverse.llm.training_enhanced import train_model_enhanced
 from graphverse.llm.evaluation import evaluate_model
 from graphverse.graph.walk import generate_multiple_walks
 from graphverse.utils.experiment_manager import (
@@ -23,6 +24,7 @@ from graphverse.llm.evaluation_vis import (
     plot_error_summary, plot_kl_divergence_timeseries, plot_aggregate_kl,
     plot_token_kl_heatmap, plot_token_entropy_vs_kl, plot_prediction_confidence_analysis
 )
+from graphverse.llm.model_visualization import create_comprehensive_evaluation_report
 
 def main(n, num_walks, context_window_size, num_ascenders, num_evens, num_repeaters, repeater_min_steps, repeater_max_steps, epochs, batch_size, learning_rate, verbose=False, repeater_distance=None, seed=None, use_percentages=False, edge_concentration=0.8):
     # Calculate walk lengths based on context window (walks = 2x context window)
@@ -119,7 +121,7 @@ def main(n, num_walks, context_window_size, num_ascenders, num_evens, num_repeat
         print("="*60)
     G = generate_random_graph(
         n, rule_instances, num_walks, min_walk_length, max_walk_length, 
-        verbose=verbose, edge_concentration=edge_concentration
+        verbose=verbose, exponential_scale=edge_concentration  # Using edge_concentration as exponential_scale
     )
 
     if verbose:
@@ -154,20 +156,45 @@ def main(n, num_walks, context_window_size, num_ascenders, num_evens, num_repeat
     # Train model
     if verbose:
         print(f'Training model')
-    hidden_size = 256
-    num_heads = 8
-    model = train_model(
-        training_data, vocab,
-        hidden_size=hidden_size,
-        num_layers=4,
-        num_heads=num_heads,
-        dropout=0.1,
-        batch_size=batch_size,
-        num_epochs=epochs,
-        learning_rate=learning_rate,
-        context_window_size=context_window_size,
-        verbose=verbose
-    )
+    
+    # Use enhanced model for context window 16+, regular for smaller
+    if context_window_size >= 16:
+        # Use enhanced training with better architecture
+        model = train_model_enhanced(
+            training_data, vocab,
+            hidden_size=384,  # Optimized size
+            num_layers=4,      # Fewer but better layers
+            num_heads=6,       # 384/6 = 64 dim per head
+            dropout=0.1,
+            batch_size=batch_size,
+            num_epochs=epochs,
+            learning_rate=learning_rate,
+            context_window_size=context_window_size,
+            verbose=verbose,
+            label_smoothing=0.1,
+            warmup_ratio=0.1,
+            gradient_accumulation_steps=2,
+            weight_decay=0.01
+        )
+    else:
+        # Use regular training for smaller context windows
+        hidden_size = 256
+        num_heads = 8
+        num_layers = 4
+        dropout_rate = 0.1
+        
+        model = train_model(
+            training_data, vocab,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            dropout=dropout_rate,
+            batch_size=batch_size,
+            num_epochs=epochs,
+            learning_rate=learning_rate,
+            context_window_size=context_window_size,
+            verbose=verbose
+        )
     if verbose:
         print(f'Model trained')
 
@@ -328,6 +355,36 @@ if __name__ == "__main__":
         plot_token_kl_heatmap(token_level_data, output_path=f"{latest_folder}/evaluation/token_kl_heatmap.png")
         plot_token_entropy_vs_kl(token_level_data, output_path=f"{latest_folder}/evaluation/entropy_vs_kl.png")
         plot_prediction_confidence_analysis(token_level_data, output_path=f"{latest_folder}/evaluation/prediction_analysis.png")
+        
+        # NEW: Comprehensive model evaluation visualizations
+        print("\n📊 Generating comprehensive evaluation visualizations...")
+        
+        # Prepare model config for visualization
+        model_config = {
+            'hidden_size': 384,  # From enhanced model
+            'num_layers': 4,
+            'num_heads': 6,
+            'total_params': sum(p.numel() for p in model.parameters()) if model else 0
+        }
+        
+        # Prepare training metrics (if available)
+        training_metrics = {
+            'epoch_losses': [],  # Would be populated during training
+            'learning_rates': []
+        }
+        
+        # Generate comprehensive visualizations
+        try:
+            generated_plots = create_comprehensive_evaluation_report(
+                model_config=model_config,
+                training_metrics=training_metrics,
+                evaluation_results=evaluation_results,
+                token_level_data=token_level_data,
+                output_dir=f"{latest_folder}/evaluation"
+            )
+            print(f"✅ Generated {len(generated_plots)} additional visualization plots")
+        except Exception as e:
+            print(f"⚠️  Some visualizations failed: {e}")
         
         print(f"All visualizations saved to: {latest_folder}/evaluation/")
     else:

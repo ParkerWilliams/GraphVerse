@@ -24,20 +24,24 @@ class GraphVisualizer:
         self.edge_colors = None
         
     def circular_layout(self):
-        """Create a circular layout for nodes."""
+        """Create a circular layout for nodes with better spacing."""
         n = self.graph.n
         positions = np.zeros((n, 2))
         
+        # Scale radius based on number of nodes to prevent overlap
+        # For 100 nodes, need much larger radius for proper spacing
+        radius = max(5.0, n * 0.4)  # Minimum radius of 5, scale more aggressively
+        
         for i in range(n):
             angle = 2 * np.pi * i / n
-            positions[i] = [np.cos(angle), np.sin(angle)]
+            positions[i] = [radius * np.cos(angle), radius * np.sin(angle)]
             
         self.node_positions = positions
         return positions
     
     def spring_layout(self, iterations=50, k=1.0, repulsion=0.1):
         """
-        Simple spring-force layout algorithm.
+        Simple spring-force layout algorithm with improved spacing.
         
         Args:
             iterations: Number of layout iterations
@@ -46,35 +50,53 @@ class GraphVisualizer:
         """
         n = self.graph.n
         
-        # Initialize random positions
-        positions = np.random.random((n, 2)) * 2 - 1
+        # Initialize random positions in reasonable range
+        np.random.seed(42)  # For reproducible layouts
+        positions = np.random.random((n, 2)) * 2 - 1  # Start in [-1, 1] range
         
-        for _ in range(iterations):
+        # Conservative parameters to prevent explosion
+        optimal_edge_length = 1.0
+        repulsion_strength = 0.1
+        max_force = 0.1  # Cap maximum force magnitude
+        
+        for iteration in range(iterations):
             forces = np.zeros((n, 2))
             
-            # Spring forces between connected nodes
+            # Calculate forces between all pairs of nodes
             for i in range(n):
                 for j in range(n):
                     if i != j:
                         dx = positions[j, 0] - positions[i, 0]
                         dy = positions[j, 1] - positions[i, 1]
-                        dist = np.sqrt(dx*dx + dy*dy)
+                        dist = max(0.01, np.sqrt(dx*dx + dy*dy))  # Prevent division by zero
                         
-                        if dist > 0:
-                            if self.graph.adjacency[i, j] > 0:  # Connected nodes
-                                # Attractive force
-                                force_mag = k * (dist - 1.0)
-                                forces[i, 0] += force_mag * dx / dist
-                                forces[i, 1] += force_mag * dy / dist
-                            else:  # Unconnected nodes
-                                # Repulsive force
-                                force_mag = repulsion / (dist * dist)
-                                forces[i, 0] -= force_mag * dx / dist
-                                forces[i, 1] -= force_mag * dy / dist
+                        # Unit vector from i to j
+                        ux, uy = dx / dist, dy / dist
+                        
+                        if self.graph.adjacency[i, j] > 0:  # Connected nodes
+                            # Attractive spring force - only if too far apart
+                            if dist > optimal_edge_length:
+                                force_mag = min(k * (dist - optimal_edge_length) * 0.1, max_force)
+                                forces[i, 0] += force_mag * ux
+                                forces[i, 1] += force_mag * uy
+                        
+                        # Repulsive force for all pairs (prevents overlap)
+                        if dist < optimal_edge_length * 2:
+                            force_mag = min(repulsion_strength / (dist + 0.1), max_force)
+                            forces[i, 0] -= force_mag * ux
+                            forces[i, 1] -= force_mag * uy
             
-            # Update positions
-            positions += forces * 0.1
+            # Update positions with small step size and cooling
+            cooling = max(0.1, 1.0 - (iteration / iterations) * 0.8)
+            step_size = 0.01 * cooling  # Much smaller step size
             
+            # Clamp forces to prevent explosion
+            forces = np.clip(forces, -max_force, max_force)
+            positions += forces * step_size
+            
+            # Keep positions in reasonable bounds
+            positions = np.clip(positions, -10, 10)
+        
         self.node_positions = positions
         return positions
     
@@ -89,16 +111,22 @@ class GraphVisualizer:
             return self.circular_layout()
     
     def grid_layout(self):
-        """Create a grid layout for small graphs."""
+        """Create a grid layout with better spacing."""
         n = self.graph.n
         cols = int(np.ceil(np.sqrt(n)))
         rows = int(np.ceil(n / cols))
+        
+        # Scale spacing based on graph size
+        spacing = max(1.5, np.sqrt(n) * 0.2)
         
         positions = np.zeros((n, 2))
         for i in range(n):
             row = i // cols
             col = i % cols
-            positions[i] = [col - (cols-1)/2, (rows-1)/2 - row]
+            positions[i] = [
+                (col - (cols-1)/2) * spacing, 
+                ((rows-1)/2 - row) * spacing
+            ]
             
         self.node_positions = positions
         return positions
@@ -177,7 +205,10 @@ class GraphVisualizer:
         for i in range(self.graph.n):
             x, y = positions[i]
             color = self.node_colors[i] if isinstance(self.node_colors[i], str) else 'skyblue'
-            circle = Circle((x, y), radius=node_size/10000, 
+            # Calculate appropriate radius based on plot scale and node count
+            plot_range = max(positions.max() - positions.min(), 1.0)
+            radius = min(0.15, plot_range / (np.sqrt(self.graph.n) * 8))  # Adaptive radius
+            circle = Circle((x, y), radius=radius, 
                           facecolor=color, edgecolor='black', linewidth=1)
             ax.add_patch(circle)
             
@@ -187,9 +218,11 @@ class GraphVisualizer:
                                              markerfacecolor=color, markersize=8))
                 node_labels_list.append(f'Node {i}')
         
-        # Set plot properties
-        ax.set_xlim(positions[:, 0].min() - 0.2, positions[:, 0].max() + 0.2)
-        ax.set_ylim(positions[:, 1].min() - 0.2, positions[:, 1].max() + 0.2)
+        # Set plot properties with better margins
+        plot_range = max(positions.max() - positions.min(), 1.0)
+        margin = max(0.5, plot_range * 0.1)  # 10% margin, minimum 0.5
+        ax.set_xlim(positions[:, 0].min() - margin, positions[:, 0].max() + margin)
+        ax.set_ylim(positions[:, 1].min() - margin, positions[:, 1].max() + margin)
         ax.set_aspect('equal')
         ax.set_title(title, fontsize=14, fontweight='bold')
         ax.axis('off')
@@ -240,9 +273,12 @@ class GraphVisualizer:
         # Highlight walk nodes
         walk_handles = []
         walk_labels = []
+        plot_range = max(self.node_positions.max() - self.node_positions.min(), 1.0)
+        walk_radius = min(0.2, plot_range / (np.sqrt(self.graph.n) * 6))  # Slightly larger than regular nodes
+        
         for i, node in enumerate(walk):
             x, y = self.node_positions[node]
-            circle = Circle((x, y), radius=400/10000, 
+            circle = Circle((x, y), radius=walk_radius, 
                           facecolor=highlight_color, edgecolor='darkred', 
                           linewidth=2, alpha=0.7)
             ax.add_patch(circle)
